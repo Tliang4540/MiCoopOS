@@ -1,0 +1,93 @@
+/*
+ * SPDX-License-Identifier: MIT
+ *
+ * Copyright (c) 2025 ljyan
+ */
+#ifndef __MCCONFIG_H__
+#define __MCCONFIG_H__
+
+/* MiCoopOS config */
+#cmakedefine MC_TASK_GET_FREE_STACK_ENABLE
+
+/* OLED */
+#cmakedefine BSP_USING_SPI_OLED
+/* SPIFLASH */
+#cmakedefine BSP_USING_SPIFLASH
+/* ONCHIP_FLASH */
+#cmakedefine BSP_USING_ONCHIP_FLASH
+
+/* UART */
+#define BSP_UART_BUFFER_SIZE  @BSP_UART_BUFFER_SIZE@
+#define BSP_UART1_TX_BUFSIZE  @BSP_UART1_TX_BUFSIZE@
+#define BSP_UART1_RX_BUFSIZE  @BSP_UART1_RX_BUFSIZE@
+#cmakedefine BSP_USING_UART1
+#cmakedefine BSP_USING_UART2
+#cmakedefine BSP_USING_UART3
+#cmakedefine BSP_USING_UART4
+#cmakedefine BSP_USING_UART5
+#cmakedefine BSP_USING_UART6
+#cmakedefine BSP_USING_UART7
+#cmakedefine BSP_USING_UART8
+#cmakedefine BSP_USING_LPUART1
+#cmakedefine BSP_USING_LPUART2
+
+/* SPI */
+#cmakedefine BSP_USING_SPI1
+#cmakedefine BSP_SPI1_RX_USING_DMA
+#cmakedefine BSP_SPI1_TX_USING_DMA
+#cmakedefine BSP_USING_SPI2
+#cmakedefine BSP_SPI2_RX_USING_DMA
+#cmakedefine BSP_SPI2_TX_USING_DMA
+#cmakedefine BSP_USING_SPI3
+#cmakedefine BSP_SPI3_RX_USING_DMA
+#cmakedefine BSP_SPI3_TX_USING_DMA
+
+/* IIC */
+#cmakedefine BSP_USING_I2C1
+#cmakedefine BSP_USING_I2C2
+#cmakedefine BSP_USING_I2C3
+
+/* ADC */
+#cmakedefine BSP_USING_ADC1
+
+/* TIMER */
+#cmakedefine BSP_USING_TIMER1
+#cmakedefine BSP_USING_TIMER2
+#cmakedefine BSP_USING_TIMER3
+#cmakedefine BSP_USING_TIMER4
+#cmakedefine BSP_USING_TIMER6
+#cmakedefine BSP_USING_TIMER7
+#cmakedefine BSP_USING_TIMER14
+#cmakedefine BSP_USING_TIMER15
+#cmakedefine BSP_USING_TIMER16
+#cmakedefine BSP_USING_TIMER17
+#cmakedefine BSP_USING_TIMER21
+#cmakedefine BSP_USING_TIMER22
+
+/* PWM */
+#cmakedefine BSP_USING_PWM1
+#cmakedefine BSP_USING_PWM2
+#cmakedefine BSP_USING_PWM3
+#cmakedefine BSP_USING_PWM4
+#cmakedefine BSP_USING_PWM14
+#cmakedefine BSP_USING_PWM15
+#cmakedefine BSP_USING_PWM16
+#cmakedefine BSP_USING_PWM17
+#cmakedefine BSP_USING_PWM21
+#cmakedefine BSP_USING_PWM22
+
+/* WDT */
+#cmakedefine BSP_USING_WDT
+
+/* RTC */
+#cmakedefine BSP_USING_RTC
+
+/* AUDIO */
+#cmakedefine BSP_USING_PWM_AUDIO
+#cmakedefine BSP_USING_DAC_AUDIO
+#if defined(BSP_USING_PWM_AUDIO) || defined(BSP_USING_DAC_AUDIO)
+#cmakedefine AUDIO_USING_TIMER6
+#cmakedefine AUDIO_USING_TIMER7
+#endif
+
+#endif
