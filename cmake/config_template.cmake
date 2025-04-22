@@ -10,7 +10,7 @@ set(TARGET_FLAGS "-mcpu=cortex-m0plus ")
 include(${MICOOPOS_PATH}/cmake/arm_toolchain.cmake)
 
 # log config
-set(LOG_LEVEL 0)
+set(LOG_LEVEL 3)
 option(LOG_COLOR_ENABLE "Enable log color" ON)
 
 # MiCoopOS config
@@ -24,13 +24,13 @@ option(BSP_USING_ONCHIP_FLASH "Enable ONCHIP_FLASH" ON)
 
 # UART
 set(BSP_UART_BUFFER_SIZE 128) #设置UART默认缓存大小，未单独设置时使用此值
-set(BSP_UART1_TX_BUFSIZE 128) #单独设置UART1的发送缓存大小
-set(BSP_UART1_RX_BUFSIZE 128) #单独设置UART1的接收缓存大小
+set(BSP_UART2_TX_BUFSIZE 128) #单独设置UART2的发送缓存大小
+set(BSP_UART2_RX_BUFSIZE 4) #单独设置UART2的接收缓存大小
 
-option(BSP_USING_UART1 "Enable UART1" ON)
+option(BSP_USING_UART1 "Enable UART1" OFF)
 option(BSP_USING_UART2 "Enable UART2" ON)
-option(BSP_USING_UART3 "Enable UART3" ON)
-option(BSP_USING_UART4 "Enable UART4" ON)
+option(BSP_USING_UART3 "Enable UART3" OFF)
+option(BSP_USING_UART4 "Enable UART4" OFF)
 option(BSP_USING_UART5 "Enable UART5" OFF)
 option(BSP_USING_UART6 "Enable UART6" OFF)
 option(BSP_USING_UART7 "Enable UART5" OFF)
