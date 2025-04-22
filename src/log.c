@@ -5,6 +5,7 @@
  */
 #include <log.h>
 #include <mclib.h>
+#include <mcos.h>
 #include <serial.h>
 #include <stdarg.h>
 #include <string.h>
@@ -13,13 +14,17 @@
 #if LOG_LEVEL
 
 static serial_handle_t m_serial;
+static unsigned int log_lock = 0;
 static char log_buf[128];    //防止任务栈溢出, 使用静态变量
 
 void log_printf(const char *format, ...)
 {
-    unsigned written = 0;
+    unsigned int written = 0;
     char ch;
     va_list args;
+
+    if (log_lock)
+        mc_delay(1);
 
     va_start(args, format);
 
@@ -89,6 +94,7 @@ void log_printf(const char *format, ...)
 
     va_end(args);
     serial_write(m_serial, log_buf, written);
+    log_lock = 0;
 }
 
 void log_dump(const void *data, unsigned size)
@@ -96,6 +102,9 @@ void log_dump(const void *data, unsigned size)
     unsigned i;
     unsigned buf_index = 0;
     unsigned char *dump = (unsigned char*)data;
+
+    if (log_lock)
+        mc_delay(1);
 
     for(i = 0; i < size; i++)
     {
@@ -117,6 +126,7 @@ void log_dump(const void *data, unsigned size)
         // }
     }
     serial_write(m_serial, log_buf, buf_index);
+    log_lock = 0;
 }
 
 #ifndef NDEBUG

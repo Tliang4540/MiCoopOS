@@ -19,6 +19,7 @@ static void hello_task(void *arg)
     while (1)
     {
         LOG_I("%s", arg);
+        LOG_DUMP(arg, 16);
         LOG_I("free stack: %d", mc_task_get_free_stack());
         mc_delay(1000);
     }
