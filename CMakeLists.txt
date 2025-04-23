@@ -21,7 +21,11 @@ add_library(micoopos
 )
 
 target_link_libraries(micoopos PRIVATE archlib driverslib)
-target_link_libraries(micoopos PUBLIC componentslib)
+
+if(TARGET componentslib)
+    target_link_libraries(micoopos PUBLIC componentslib)
+endif()
+
 target_include_directories(micoopos PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(micoopos PUBLIC include drivers/include)
 target_compile_definitions(micoopos PUBLIC LOG_LEVEL=${LOG_LEVEL} LOG_COLOR_ENABLE)

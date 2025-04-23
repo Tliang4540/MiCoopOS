@@ -1,11 +1,15 @@
-add_library(componentslib
-    components/graphic/graphic.c
-    components/tinydb/tinydb.c
-)
+if(COMPONENTS_GRAPHIC_ENABLE)
+    set(COMPONENTS_SRC ${COMPONENTS_SRC} components/graphic/graphic.c)
+    set(COMPONNETS_INC ${COMPONNETS_INC} components/graphic)
+endif()
 
-target_include_directories(componentslib PUBLIC
-    components/graphic
-    components/tinydb
-)
+if(COMPONENTS_MICRODB_ENABLE)
+    set(COMPONENTS_SRC ${COMPONENTS_SRC} components/microdb/microdb.c)
+    set(COMPONNETS_INC ${COMPONNETS_INC} components/microdb)
+endif()
 
-target_link_libraries(componentslib PRIVATE driverslib micoopos)
+if(COMPONENTS_SRC)
+    add_library(componentslib ${COMPONENTS_SRC})
+    target_include_directories(componentslib PUBLIC ${COMPONNETS_INC})
+    target_link_libraries(componentslib PRIVATE driverslib micoopos)
+endif()
