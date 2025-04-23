@@ -9,7 +9,7 @@
 #include <string.h>
 #include <log.h>
 
-#define DB_LOG_ENABLE 1
+#define DB_LOG_ENABLE 0
 #if DB_LOG_ENABLE
 #define DB_LOG(fmt, ...)    LOG_OUT("[DB]:"fmt"\n", ##__VA_ARGS__)
 #else

@@ -24,8 +24,8 @@ option(BSP_USING_ONCHIP_FLASH "Enable ONCHIP_FLASH" ON)
 
 # UART
 set(BSP_UART_BUFFER_SIZE 128) #设置UART默认缓存大小，未单独设置时使用此值
-set(BSP_UART2_TX_BUFSIZE 128) #单独设置UART2的发送缓存大小
-set(BSP_UART2_RX_BUFSIZE 4) #单独设置UART2的接收缓存大小
+set(BSP_UART2_TX_BUFSIZE 128) #单独设置UART2的发送缓存大小，不能设置为0
+set(BSP_UART2_RX_BUFSIZE 4) #单独设置UART2的接收缓存大小，不能设置为0
 
 option(BSP_USING_UART1 "Enable UART1" OFF)
 option(BSP_USING_UART2 "Enable UART2" ON)

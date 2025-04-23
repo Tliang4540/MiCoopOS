@@ -11,6 +11,7 @@
 #include <mcos.h>
 
 #include "led_dev_test/led_dev_test.h"
+#include "flash_test/flash_test.h"
 
 static uint32_t hello_task_stack[64];
 static void hello_task(void *arg)
@@ -37,10 +38,12 @@ int main(void)
     pin_function(3, 1);                 // UART RX function
     log_init(0, 500000);                // Initialize log serial
 
+    // 在os未启动前不能输出超过seiral缓存的数据，否则触发任务切换导致异常
     LOG_I("MiCoopOS test startup.");
     
     led_dev_test();
     mc_task_init(hello_task, "Hello MiCoopOS.", hello_task_stack, sizeof(hello_task_stack));
+    flash_test();
 
     systick_init(mc_tick_handler);
     mc_start();

@@ -8,7 +8,11 @@ project(micoopos_test LANGUAGES C ASM)
 include(stm32g0_config.cmake)
 # include(stm32l0_config.cmake)
 
-add_executable(${CMAKE_PROJECT_NAME} main.c led_dev_test/led_dev_test.c)
+add_executable(${CMAKE_PROJECT_NAME}
+    main.c 
+    led_dev_test/led_dev_test.c
+    flash_test/flash_test.c
+)
 
 add_subdirectory(${MICOOPOS_PATH} micoopos)
 
