@@ -129,7 +129,7 @@ void log_dump(const void *data, unsigned size)
     log_lock = 0;
 }
 
-#ifndef NDEBUG
+#ifndef LOG_ASSERT_ENABLE
 void log_assert(const char *ex_str, const char *func, unsigned int line)
 {
     log_printf("%s:%d:(%s)\n", func, line, ex_str);

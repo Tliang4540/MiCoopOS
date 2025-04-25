@@ -28,4 +28,4 @@ endif()
 
 target_include_directories(micoopos PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(micoopos PUBLIC include drivers/include)
-target_compile_definitions(micoopos PUBLIC LOG_LEVEL=${LOG_LEVEL} LOG_COLOR_ENABLE)
+target_compile_definitions(micoopos PUBLIC LOG_LEVEL=${LOG_LEVEL} LOG_COLOR_ENABLE LOG_ASSERT_ENABLE)

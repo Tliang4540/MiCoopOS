@@ -45,7 +45,7 @@ void log_assert(const char *ex_str, const char *func, unsigned int line);
 #define LOG_I(format, ...)      log_printf("[I]:"format"\n", ##__VA_ARGS__)
 #define LOG_OUT(format, ...)    log_printf(format, ##__VA_ARGS__)
 #define LOG_DUMP(data, size)    log_dump(data, size)
-#ifndef NDEBUG
+#ifndef LOG_ASSERT_ENABLE
 #define LOG_ASSERT(EX)          if (!(EX)) { log_assert(#EX, __func__, __LINE__); }
 #else
 #define LOG_ASSERT(EX)
