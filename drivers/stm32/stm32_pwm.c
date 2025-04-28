@@ -227,6 +227,35 @@ void pwm_set(pwm_handle_t pwm, unsigned int channel, unsigned int period, unsign
     }
 }
 
+void pwm_set_pulse(pwm_handle_t pwm, unsigned int channel, unsigned int pulse)
+{
+    LOG_ASSERT(pwm != 0);
+    LOG_ASSERT(channel < 4);
+
+    struct stm32_pwm *p = pwm;
+    unsigned int psc;
+    unsigned int tim_clock = SystemCoreClock / 1000000UL;
+
+    psc = p->tim->PSC + 1;
+    pulse = pulse * tim_clock / psc / 1000ULL;
+
+    switch (channel)
+    {
+    case 0:
+        p->tim->CCR1 = pulse;
+        break;
+    case 1:
+        p->tim->CCR2 = pulse;
+        break;
+    case 2: 
+        p->tim->CCR3 = pulse;
+        break;
+    default:
+        p->tim->CCR4 = pulse;
+        break;
+    }
+}
+
 pwm_handle_t pwm_open(unsigned int pwmid)
 {
     struct stm32_pwm *pwm;
