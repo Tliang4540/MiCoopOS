@@ -140,11 +140,11 @@ void i2c_init(i2c_handle_t *dev, unsigned int i2c_id, unsigned int dev_addr, uns
     NVIC_EnableIRQ(i2c_irqs[i2c_id]);
 }
 
-int i2c_read(i2c_handle_t *dev, const void *addr, unsigned int addr_size, void *data, unsigned int size)
+mc_err_t i2c_read(i2c_handle_t *dev, const void *addr, unsigned int addr_size, void *data, unsigned int size)
 {
     struct stm32_i2c *i2c;
     mc_ubase_t msg;
-    int ret = size;
+    int ret = MC_EOK;
 
     LOG_ASSERT(dev != 0);
     i2c = dev->user_data;
@@ -172,13 +172,13 @@ int i2c_read(i2c_handle_t *dev, const void *addr, unsigned int addr_size, void *
         if (msg)
         {
             LOG_E("i2c rs:%x", msg);
-            ret = -1;
+            ret = MC_ERROR;
         }
     }
     else
     {
         LOG_E("i2c r timeout");
-        ret = -1;
+        ret = MC_ERROR;
     }
 
     if (i2c->i2c->ISR & I2C_ISR_BUSY)
@@ -192,11 +192,11 @@ int i2c_read(i2c_handle_t *dev, const void *addr, unsigned int addr_size, void *
     return ret;
 }
 
-int i2c_write(i2c_handle_t *dev, const void *data, unsigned int size)
+mc_err_t i2c_write(i2c_handle_t *dev, const void *data, unsigned int size)
 {
     struct stm32_i2c *i2c;
     mc_ubase_t msg;
-    int ret = size;
+    int ret = MC_EOK;
 
     LOG_ASSERT(dev != 0);
     i2c = dev->user_data;
@@ -218,13 +218,13 @@ int i2c_write(i2c_handle_t *dev, const void *data, unsigned int size)
         if (msg)
         {
             LOG_E("i2c ws:%x", msg);
-            ret = -1;
+            ret = MC_ERROR;
         }
     }
     else
     {
         LOG_E("i2c w timeout");
-        ret = -1;
+        ret = MC_ERROR;
     }
 
     if (i2c->i2c->ISR & I2C_ISR_BUSY)
@@ -238,7 +238,7 @@ int i2c_write(i2c_handle_t *dev, const void *data, unsigned int size)
     return ret;
 }
 
-void i2c_irq(struct stm32_i2c *i2c)
+static void i2c_irq(struct stm32_i2c *i2c)
 {
     unsigned int flags = i2c->i2c->ISR;
     unsigned int sources = i2c->i2c->CR1;
