@@ -15,8 +15,9 @@ struct device_ops
     int (*close)(struct device *dev);
     int (*write)(struct device *dev, const void *buf, size_t size);
     int (*read)(struct device *dev, void *buf, size_t size);
-    int (*ctrl)(struct device *dev, int cmd, void *args);
+    int (*ioctrl)(struct device *dev, int cmd, void *args);
 };
+typedef struct device_ops device_ops_t;
 
 struct device
 {
@@ -49,7 +50,7 @@ static inline int device_read(device_t *dev, void *buf, size_t size)
 
 static inline int device_ioctrl(device_t *dev, int cmd, void *args)
 {
-    return dev->ops->ctrl(dev, cmd, args);
+    return dev->ops->ioctrl(dev, cmd, args);
 }
 
 void device_add(device_t *dev, const char *name);
