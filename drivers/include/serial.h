@@ -8,7 +8,8 @@
 
 typedef void* serial_handle_t;
 
-serial_handle_t serial_open(unsigned int serial_id, unsigned int baudrate);
+serial_handle_t serial_init(unsigned int serial_id);
+void serial_open(serial_handle_t serial, unsigned int baudrate);
 void serial_close(serial_handle_t serial);
 void serial_write(serial_handle_t serial, const void *data, unsigned int size);
 unsigned int serial_read(serial_handle_t serial, void *data, unsigned int size);

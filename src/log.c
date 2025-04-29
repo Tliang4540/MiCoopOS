@@ -139,7 +139,8 @@ void log_assert(const char *ex_str, const char *func, unsigned int line)
 
 void log_init(unsigned serial_id, unsigned baud)
 {
-    m_serial = serial_open(serial_id, baud);
+    m_serial = serial_init(serial_id);
+    serial_open(m_serial, baud);
 }
 
 #endif

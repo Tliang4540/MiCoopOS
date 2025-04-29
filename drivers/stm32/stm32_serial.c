@@ -328,7 +328,7 @@ static void uart_clk_enable(unsigned int port)
     }
 }
 
-serial_handle_t serial_open(unsigned int serial_id, unsigned int baudrate)
+serial_handle_t serial_init(unsigned int serial_id)
 {
     struct stm32_uart *uart;
 
@@ -338,6 +338,13 @@ serial_handle_t serial_open(unsigned int serial_id, unsigned int baudrate)
 
     uart_clk_enable(serial_id);
 
+    return uart;
+}
+
+void serial_open(serial_handle_t serial, unsigned int baudrate)
+{
+    struct stm32_uart *uart = serial;
+    
     // LPUART使用HSI时钟
     #if defined(LPUART1)
     if (uart->uart == LPUART1)
@@ -354,8 +361,6 @@ serial_handle_t serial_open(unsigned int serial_id, unsigned int baudrate)
     NVIC_SetPriority(uart->irq, 3);
     NVIC_EnableIRQ(uart->irq);
     uart->uart->CR1 = (1 << 5) | USART_CR1_TE | USART_CR1_RE | USART_CR1_UE;
-
-    return uart;
 }
 
 void serial_close(serial_handle_t serial)
