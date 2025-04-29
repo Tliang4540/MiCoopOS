@@ -23,7 +23,7 @@ struct device
 {
     mc_slist_t list_node;
     const char *name;
-    struct device_ops *ops;
+    const struct device_ops *ops;
     void *user_data;
 };
 typedef struct device device_t;
