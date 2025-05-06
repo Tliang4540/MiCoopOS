@@ -46,7 +46,8 @@ struct stm32_i2c
     unsigned short dev_addr;
     unsigned char *rx_buf;
     const unsigned char *tx_buf;
-    unsigned int rx_size;
+    unsigned short rx_size;
+    unsigned short irq;
 };
 
 enum
@@ -66,26 +67,13 @@ enum
 static struct stm32_i2c i2c_list[] = 
 {
 #if defined(I2C1) && defined(BSP_USING_I2C1)
-    {I2C1, {NULL, MC_MSG_INVALID_VAL}, 0, 0, 0, 0, 0},
+    {I2C1, {NULL, MC_MSG_INVALID_VAL}, 0, 0, 0, 0, 0, __I2C1_IRQn},
 #endif
 #if defined(I2C2) && defined(BSP_USING_I2C2)
-    {I2C2, {NULL, MC_MSG_INVALID_VAL}, 0, 0, 0, 0, 0},
+    {I2C2, {NULL, MC_MSG_INVALID_VAL}, 0, 0, 0, 0, 0, __I2C2_IRQn},
 #endif
 #if defined(I2C3) && defined(BSP_USING_I2C3)
-    {I2C3, {NULL, MC_MSG_INVALID_VAL}, 0, 0, 0, 0, 0},
-#endif
-};
-
-static const unsigned int i2c_irqs[] = 
-{
-#if defined(I2C1) && defined(BSP_USING_I2C1)
-    __I2C1_IRQn,
-#endif
-#if defined(I2C2) && defined(BSP_USING_I2C2)
-    __I2C2_IRQn,
-#endif
-#if defined(I2C3) && defined(BSP_USING_I2C3)
-    __I2C3_IRQn,
+    {I2C3, {NULL, MC_MSG_INVALID_VAL}, 0, 0, 0, 0, 0, __I2C3_IRQn},
 #endif
 };
 
@@ -113,20 +101,20 @@ static void i2c_clk_enable(unsigned int i2c)
     }
 }
 
-void i2c_init(i2c_handle_t *dev, unsigned int i2c_id, unsigned int dev_addr, unsigned int freq)
+void i2c_handle_init(i2c_handle_t *i2c_handle, unsigned int i2c_id, unsigned int dev_addr)
 {
-    struct stm32_i2c *i2c;
-
     LOG_ASSERT(i2c_id < I2C_INDEX_MAX);
+    i2c_clk_enable(i2c_id);
+    i2c_handle->dev_addr = dev_addr;
+    i2c_handle->user_data = &i2c_list[i2c_id];
+}
 
-    i2c = &i2c_list[i2c_id];
-    dev->dev_addr = dev_addr;
-    dev->user_data = i2c;
+void i2c_open(i2c_handle_t *i2c_handle, unsigned int freq)
+{
+    struct stm32_i2c *i2c = i2c_handle->user_data;
 
     if (LL_I2C_IsEnabled(i2c->i2c))
         return;
-
-    i2c_clk_enable(i2c_id);
 
     if (freq <= 100000)
         freq = __I2C_TIMING_100K;
@@ -136,19 +124,15 @@ void i2c_init(i2c_handle_t *dev, unsigned int i2c_id, unsigned int dev_addr, uns
     LL_I2C_SetTiming(i2c->i2c, freq);
     LL_I2C_Enable(i2c->i2c);
 
-    NVIC_SetPriority(i2c_irqs[i2c_id], 3);
-    NVIC_EnableIRQ(i2c_irqs[i2c_id]);
+    NVIC_SetPriority(i2c->irq, 3);
+    NVIC_EnableIRQ(i2c->irq);
 }
 
-mc_err_t i2c_read(i2c_handle_t *dev, const void *addr, unsigned int addr_size, void *data, unsigned int size)
+mc_err_t i2c_read(i2c_handle_t *i2c_handle, const void *addr, unsigned int addr_size, void *data, unsigned int size)
 {
-    struct stm32_i2c *i2c;
+    struct stm32_i2c *i2c = i2c_handle->user_data;
     mc_ubase_t msg;
     int ret = MC_EOK;
-
-    LOG_ASSERT(dev != 0);
-    i2c = dev->user_data;
-    LOG_ASSERT(i2c != 0);
 
     while(i2c->lock)
         mc_delay(0);
@@ -157,7 +141,7 @@ mc_err_t i2c_read(i2c_handle_t *dev, const void *addr, unsigned int addr_size, v
     // 准备接收数据
     i2c->rx_buf = data;
     i2c->rx_size = size;
-    i2c->dev_addr = dev->dev_addr;
+    i2c->dev_addr = i2c_handle->dev_addr;
 
     // 准备发送寄存器地址
     i2c->tx_buf = addr;
@@ -192,15 +176,11 @@ mc_err_t i2c_read(i2c_handle_t *dev, const void *addr, unsigned int addr_size, v
     return ret;
 }
 
-mc_err_t i2c_write(i2c_handle_t *dev, const void *data, unsigned int size)
+mc_err_t i2c_write(i2c_handle_t *i2c_handle, const void *data, unsigned int size)
 {
-    struct stm32_i2c *i2c;
+    struct stm32_i2c *i2c = i2c_handle->user_data;
     mc_ubase_t msg;
     int ret = MC_EOK;
-
-    LOG_ASSERT(dev != 0);
-    i2c = dev->user_data;
-    LOG_ASSERT(i2c != 0);
 
     while(i2c->lock)
         mc_delay(0);
@@ -210,7 +190,7 @@ mc_err_t i2c_write(i2c_handle_t *dev, const void *data, unsigned int size)
     i2c->tx_buf = data;
     i2c->i2c->TXDR = *i2c->tx_buf++;
 
-    LL_I2C_HandleTransfer(i2c->i2c, dev->dev_addr, LL_I2C_ADDRESSING_MODE_7BIT, size, LL_I2C_MODE_AUTOEND, LL_I2C_GENERATE_START_WRITE);
+    LL_I2C_HandleTransfer(i2c->i2c, i2c_handle->dev_addr, LL_I2C_ADDRESSING_MODE_7BIT, size, LL_I2C_MODE_AUTOEND, LL_I2C_GENERATE_START_WRITE);
     i2c->i2c->CR1 |= (I2C_CR1_STOPIE | I2C_CR1_TXIE);
 
     if (MC_FALSE != mc_msg_recv(&i2c->transfer_msg, &msg, 1000))

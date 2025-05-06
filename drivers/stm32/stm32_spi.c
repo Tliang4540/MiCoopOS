@@ -130,22 +130,24 @@ static void spi_clk_enable(unsigned int spi)
 #endif
 }
 
-void spi_init(spi_handle_t *dev, unsigned int spi_id, unsigned int cs_pin, unsigned int freq, unsigned int mode)
+void spi_handle_init(spi_handle_t *spi_handle, unsigned int spi_id, unsigned int cs_pin)
 {
-    struct stm32_spi *spi;
+    LOG_ASSERT(spi_id < SPI_INDEX_MAX);
+
+    spi_clk_enable(spi_id);
+    spi_handle->user_data = &spi_list[spi_id];
+    spi_handle->cs_pin = cs_pin;
+}
+
+void spi_open(spi_handle_t *spi_handle, unsigned int freq, unsigned int mode)
+{
+    struct stm32_spi *spi = spi_handle->user_data;
     LL_SPI_InitTypeDef spi_init;
     unsigned int dma_mdatasize;
     unsigned int dma_pdatasize;
-
-    LOG_ASSERT(spi_id < SPI_INDEX_MAX);
     
-    spi = &spi_list[spi_id];
-    dev->user_data = spi;
-    dev->cs_pin = cs_pin;
     if (LL_SPI_IsEnabled(spi->spi))
         return;
-
-    spi_clk_enable(spi_id);
 
     if (mode & SPI_SLAVE)
         spi_init.Mode = LL_SPI_MODE_SLAVE;
@@ -223,7 +225,7 @@ void spi_init(spi_handle_t *dev, unsigned int spi_id, unsigned int cs_pin, unsig
     LL_SPI_Init(spi->spi, &spi_init);
 
 #if defined (BSP_SPI1_TX_USING_DMA) || defined (BSP_SPI1_RX_USING_DMA)
-    if (spi_id == SPI1_INDEX)
+    if (spi_handle->user_data == &spi_list[SPI1_INDEX])
     {
 #if defined(BSP_SPI1_RX_USING_DMA)
         // init rx dma
@@ -258,7 +260,7 @@ void spi_init(spi_handle_t *dev, unsigned int spi_id, unsigned int cs_pin, unsig
 #endif /* defined (BSP_SPI1_TX_USING_DMA) || defined (BSP_SPI1_RX_USING_DMA) */
 
 #if defined(BSP_SPI2_RX_USING_DMA) || defined(BSP_SPI2_TX_USING_DMA)
-    if (spi_id == SPI2_INDEX)
+    if (spi_handle->user_data == &spi_list[SPI2_INDEX])
     {
 #if defined(BSP_SPI2_RX_USING_DMA)
         // init rx dma
@@ -293,7 +295,7 @@ void spi_init(spi_handle_t *dev, unsigned int spi_id, unsigned int cs_pin, unsig
 #endif
 
 #if defined(BSP_SPI3_RX_USING_DMA) || defined(BSP_SPI3_TX_USING_DMA)
-    if (spi_id == SPI3_INDEX)
+    if (spi_handle->user_data == &spi_list[SPI3_INDEX])
     {
 #if defined(BSP_SPI3_RX_USING_DMA)
         // init rx dma
@@ -473,73 +475,65 @@ static void _spi_send(struct stm32_spi *spi, const void *data, unsigned int size
     LL_SPI_ClearFlag_OVR(spi->spi);
 }
 
-void spi_transfer(spi_handle_t *dev, void *data, unsigned int size)
+void spi_transfer(spi_handle_t *spi_handle, void *data, unsigned int size)
 {
-    LOG_ASSERT(dev != 0);
-    struct stm32_spi *spi = dev->user_data;
-    LOG_ASSERT(spi != 0);
+    struct stm32_spi *spi = spi_handle->user_data;
 
     while (spi->lock)
         mc_delay(0);
     spi->lock = 1;
-    pin_write(dev->cs_pin, 0);
 
+    pin_write(spi_handle->cs_pin, 0);
     _spi_transfer(spi, data, size);
+    pin_write(spi_handle->cs_pin, 1);
 
-    pin_write(dev->cs_pin, 1);
     spi->lock = 0;
 }
 
-void spi_send(spi_handle_t *dev, const void *data, unsigned int size)
+void spi_send(spi_handle_t *spi_handle, const void *data, unsigned int size)
 {
-    LOG_ASSERT(dev != 0);
-    struct stm32_spi *spi = dev->user_data;
-    LOG_ASSERT(spi != 0);
+    struct stm32_spi *spi = spi_handle->user_data;
 
     while (spi->lock)
         mc_delay(0);
     spi->lock = 1;
-    pin_write(dev->cs_pin, 0);
 
+    pin_write(spi_handle->cs_pin, 0);
     _spi_send(spi, data, size);
+    pin_write(spi_handle->cs_pin, 1);
 
-    pin_write(dev->cs_pin, 1);
     spi->lock = 0;
 }
 
-void spi_send_then_send(spi_handle_t *dev, const void *send_data1, unsigned int send_size1, const void *send_data2, unsigned int send_size2)
+void spi_send_then_send(spi_handle_t *spi_handle, const void *send_data1, unsigned int send_size1, const void *send_data2, unsigned int send_size2)
 {
-    LOG_ASSERT(dev != 0);
-    struct stm32_spi *spi = dev->user_data;
-    LOG_ASSERT(spi != 0);
+    struct stm32_spi *spi = spi_handle->user_data;
 
     while (spi->lock)
         mc_delay(0);
     spi->lock = 1;
-    pin_write(dev->cs_pin, 0);
 
+    pin_write(spi_handle->cs_pin, 0);
     _spi_send(spi, send_data1, send_size1);
     _spi_send(spi, send_data2, send_size2);
+    pin_write(spi_handle->cs_pin, 1);
 
-    pin_write(dev->cs_pin, 1);
     spi->lock = 0;
 }
 
-void spi_send_then_recv(spi_handle_t *dev, const void *send_data, unsigned int send_size, void *recv_data, unsigned int recv_size)
+void spi_send_then_recv(spi_handle_t *spi_handle, const void *send_data, unsigned int send_size, void *recv_data, unsigned int recv_size)
 {
-    LOG_ASSERT(dev != 0);
-    struct stm32_spi *spi = dev->user_data;
-    LOG_ASSERT(spi != 0);
+    struct stm32_spi *spi = spi_handle->user_data;
 
     while (spi->lock)
         mc_delay(0);
     spi->lock = 1;
-    pin_write(dev->cs_pin, 0);
 
+    pin_write(spi_handle->cs_pin, 0);
     _spi_send(spi, send_data, send_size);
     _spi_transfer(spi, recv_data, recv_size);
+    pin_write(spi_handle->cs_pin, 1);
 
-    pin_write(dev->cs_pin, 1);
     spi->lock = 0;
 }
 

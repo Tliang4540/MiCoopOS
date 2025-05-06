@@ -68,7 +68,7 @@
 #define AUDIO_RATE              (14650)
 #define AUDIO_BITS              (10)
 
-struct audio_dev
+struct audio_drv
 {
     pwm_handle_t pwm;
     unsigned int channel;
@@ -77,34 +77,41 @@ struct audio_dev
     unsigned short buffer[2][256];
 };
 
-static struct audio_dev audio;
+static struct audio_drv _audio;
 
-void audio_init(unsigned int dac_id, unsigned int channel)
+void audio_handle_init(audio_handle_t *audio_handle, unsigned int dac_id, unsigned int channel)
 {
-    uint32_t ccr_addr;
-    unsigned int pwm_period;
     AUDIO_DMA_CLK_ENABLE();
     AUDIO_TIM_CLK_ENABLE();
+    pwm_handle_init(&_audio.pwm, dac_id);
+    _audio.channel = channel;
+    audio_handle->user_data = &_audio;
+}
+
+void audio_open(audio_handle_t *audio_handle)
+{
+    uint32_t ccr_addr;
+    struct audio_drv *audio = audio_handle->user_data;
+    unsigned int pwm_period;
     LL_TIM_SetAutoReload(AUDIO_TIM, SystemCoreClock / AUDIO_RATE - 1);
     LL_TIM_EnableDMAReq_UPDATE(AUDIO_TIM);
 
-    audio.pwm = pwm_open(dac_id);
-    audio.channel = channel;
+    pwm_open(&audio->pwm);
     pwm_period = 1000000000 / (SystemCoreClock / (1 << AUDIO_BITS));
-    pwm_set(audio.pwm, channel, pwm_period, pwm_period / 2);
-    switch(channel)
+    pwm_set(&audio->pwm, audio->channel, pwm_period, pwm_period / 2);
+    switch(audio->channel)
     {
     case 0:
-        ccr_addr = (uint32_t)&((TIM_TypeDef*)(*(uint32_t*)audio.pwm))->CCR1;
+        ccr_addr = (uint32_t)&((TIM_TypeDef*)(*(uint32_t*)audio->pwm.user_data))->CCR1;
         break;
     case 1:
-        ccr_addr = (uint32_t)&((TIM_TypeDef*)(*(uint32_t*)audio.pwm))->CCR2;
+        ccr_addr = (uint32_t)&((TIM_TypeDef*)(*(uint32_t*)audio->pwm.user_data))->CCR2;
         break;
     case 2:
-        ccr_addr = (uint32_t)&((TIM_TypeDef*)(*(uint32_t*)audio.pwm))->CCR3;
+        ccr_addr = (uint32_t)&((TIM_TypeDef*)(*(uint32_t*)audio->pwm.user_data))->CCR3;
         break;
     default:
-        ccr_addr = (uint32_t)&((TIM_TypeDef*)(*(uint32_t*)audio.pwm))->CCR4;
+        ccr_addr = (uint32_t)&((TIM_TypeDef*)(*(uint32_t*)audio->pwm.user_data))->CCR4;
         break;
     }
 
@@ -116,7 +123,7 @@ void audio_init(unsigned int dac_id, unsigned int channel)
     LL_DMA_SetMemoryIncMode(DMA1, AUDIO_DMA_CHANNEL, LL_DMA_MEMORY_INCREMENT);
     LL_DMA_SetPeriphSize(DMA1, AUDIO_DMA_CHANNEL, LL_DMA_PDATAALIGN_HALFWORD);
     LL_DMA_SetMemorySize(DMA1, AUDIO_DMA_CHANNEL, LL_DMA_MDATAALIGN_HALFWORD);
-    LL_DMA_ConfigAddresses(DMA1, AUDIO_DMA_CHANNEL, (uint32_t)audio.buffer, ccr_addr, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
+    LL_DMA_ConfigAddresses(DMA1, AUDIO_DMA_CHANNEL, (uint32_t)audio->buffer, ccr_addr, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
     //开启DMA中断
     NVIC_SetPriority(AUDIO_DMA_IRQ, 2);
     NVIC_EnableIRQ(AUDIO_DMA_IRQ);
@@ -124,26 +131,28 @@ void audio_init(unsigned int dac_id, unsigned int channel)
     LL_DMA_EnableIT_HT(DMA1, AUDIO_DMA_CHANNEL);
 }
 
-void audio_play_start(audio_callback_t callback)
+void audio_play_start(audio_handle_t *audio_handle, audio_callback_t callback)
 {
-    audio.callback = callback;
-    callback(audio.buffer[1], sizeof(audio.buffer[1]));
-    for (unsigned int i = 0; i < (sizeof(audio.buffer[0]) / sizeof(audio.buffer[0][0])); i++)
-        audio.buffer[0][i] = (1 << AUDIO_BITS) / 2;
+    struct audio_drv *audio = audio_handle->user_data;
+    audio->callback = callback;
+    callback(audio->buffer[1], sizeof(audio->buffer[1]));
+    for (unsigned int i = 0; i < (sizeof(audio->buffer[0]) / sizeof(audio->buffer[0][0])); i++)
+        audio->buffer[0][i] = (1 << AUDIO_BITS) / 2;
 
-    LL_DMA_SetDataLength(DMA1, AUDIO_DMA_CHANNEL, sizeof(audio.buffer) / sizeof(audio.buffer[0][0]));
+    LL_DMA_SetDataLength(DMA1, AUDIO_DMA_CHANNEL, sizeof(audio->buffer) / sizeof(audio->buffer[0][0]));
     LL_TIM_GenerateEvent_UPDATE(AUDIO_TIM);
     LL_DMA_EnableChannel(DMA1, AUDIO_DMA_CHANNEL);
     LL_TIM_EnableCounter(AUDIO_TIM);
-    pwm_enable(audio.pwm, audio.channel);
+    pwm_enable(&audio->pwm, audio->channel);
 }
 
-void audio_play_stop(void)
+void audio_play_stop(audio_handle_t *audio_handle)
 {
+    struct audio_drv *audio = audio_handle->user_data;
     LL_TIM_DisableCounter(AUDIO_TIM);
     LL_DMA_DisableChannel(DMA1, AUDIO_DMA_CHANNEL);
     LL_DMA_SetDataLength(DMA1, AUDIO_DMA_CHANNEL, 0);
-    pwm_disable(audio.pwm, audio.channel);
+    pwm_disable(&audio->pwm, audio->channel);
 }
 
 #if defined(STM32G0)
@@ -151,11 +160,11 @@ void DMA1_Channel1_IRQHandler(void)
 {
     if(DMA1->ISR & DMA_ISR_HTIF1) 
     {
-        audio.callback(audio.buffer[0], sizeof(audio.buffer[0]));
+        _audio.callback(_audio.buffer[0], sizeof(_audio.buffer[0]));
     }
     else if(DMA1->ISR & DMA_ISR_TCIF1)
     {
-        audio.callback(audio.buffer[1], sizeof(audio.buffer[1]));
+        _audio.callback(_audio.buffer[1], sizeof(_audio.buffer[1]));
     }
     DMA1->IFCR = DMA_IFCR_CHTIF1 | DMA_IFCR_CTCIF1;
 }

@@ -328,22 +328,17 @@ static void uart_clk_enable(unsigned int port)
     }
 }
 
-serial_handle_t serial_init(unsigned int serial_id)
+void serial_handle_init(serial_handle_t *serial_handle, unsigned int serial_id)
 {
-    struct stm32_uart *uart;
-
     LOG_ASSERT(serial_id < UART_INDEX_MAX);
     
-    uart = &uart_list[serial_id];
-
     uart_clk_enable(serial_id);
-
-    return uart;
+    serial_handle->user_data = &uart_list[serial_id];
 }
 
-void serial_open(serial_handle_t serial, unsigned int baudrate)
+void serial_open(serial_handle_t *serial_handle, unsigned int baudrate)
 {
-    struct stm32_uart *uart = serial;
+    struct stm32_uart *uart = serial_handle->user_data;
     
     // LPUART使用HSI时钟
     #if defined(LPUART1)
@@ -363,23 +358,23 @@ void serial_open(serial_handle_t serial, unsigned int baudrate)
     uart->uart->CR1 = (1 << 5) | USART_CR1_TE | USART_CR1_RE | USART_CR1_UE;
 }
 
-void serial_close(serial_handle_t serial)
+void serial_close(serial_handle_t *serial_handle)
 {
-    struct stm32_uart *uart = serial;
-
-    LOG_ASSERT(uart != 0);
+    struct stm32_uart *uart = serial_handle->user_data;
 
     uart->uart->CR1 = 0;
     NVIC_DisableIRQ(uart->irq);
-    // uart_clk_disable(serial_id);
 }
 
-void serial_write(serial_handle_t serial, const void *data, unsigned int size)
+void serial_write(serial_handle_t *serial_handle, const void *data, unsigned int size)
 {
-    struct stm32_uart *uart = serial;
+    struct stm32_uart *uart;
 
-    LOG_ASSERT(uart != 0);
-    
+    if (size == 0)
+        return;
+
+    uart = serial_handle->user_data;
+
     while(uart->lock)
         mc_delay(0);
     uart->lock = 1;
@@ -399,12 +394,9 @@ void serial_write(serial_handle_t serial, const void *data, unsigned int size)
     uart->lock = 0;
 }
 
-unsigned int serial_read(serial_handle_t serial, void *data, unsigned int size)
+unsigned int serial_read(serial_handle_t *serial_handle, void *data, unsigned int size)
 {
-    struct stm32_uart *uart = serial;
-
-    LOG_ASSERT(uart != 0);
-    
+    struct stm32_uart *uart = serial_handle->user_data;
     return rb_read(&uart->rx_rb, data, size);
 }
 

@@ -6,19 +6,15 @@
 #include <systick.h>
 #include <stm32.h>
 
-#ifndef BSP_SYSTICK_PER_SECOND
-#define BSP_SYSTICK_PER_SECOND 1000
-#endif
-
-static void (*systick_hdr)(void);
+static void (*systick_callback)(void);
 
 void SysTick_Handler(void)
 {
-    systick_hdr();
+    systick_callback();
 }
 
-void systick_init(void (*hdr)(void))
+void systick_init(unsigned int period, void (*callback)(void))
 {
-    systick_hdr = hdr;
-    SysTick_Config(SystemCoreClock / BSP_SYSTICK_PER_SECOND);
+    systick_callback = callback;
+    SysTick_Config(period * (SystemCoreClock / 1000000));
 }

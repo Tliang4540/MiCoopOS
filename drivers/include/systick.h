@@ -6,6 +6,11 @@
 #ifndef __SYSTICK_H__
 #define __SYSTICK_H__
 
-void systick_init(void (*callback)(void));
+/**
+ * @brief systick init
+ * @param period systick period(us)
+ * @param callback systick callback
+ */
+void systick_init(unsigned int period, void (*callback)(void));
 
 #endif

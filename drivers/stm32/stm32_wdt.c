@@ -14,7 +14,7 @@ void wdt_init(unsigned int period)
     LL_IWDG_Enable(IWDG);
     LL_IWDG_EnableWriteAccess(IWDG);
     LL_IWDG_SetPrescaler(IWDG, LL_IWDG_PRESCALER_256);
-    LL_IWDG_SetReloadCounter(IWDG, period * (LSE_VALUE / 1000) / 256);
+    LL_IWDG_SetReloadCounter(IWDG, period * (LSI_VALUE / 1000) / 256);
 }
 
 void wdt_reset(void)

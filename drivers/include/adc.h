@@ -6,11 +6,15 @@
 #ifndef __ADC_H__
 #define __ADC_H__
 
-typedef void *adc_handle_t;
+typedef struct
+{
+    void *user_data;
+}adc_handle_t;
 
-adc_handle_t adc_open(unsigned int adcid);
-unsigned int adc_read(adc_handle_t adc);
-void adc_set_channel(adc_handle_t adc, unsigned int channel);
-void adc_close(adc_handle_t adc);
+void adc_handle_init(adc_handle_t *adc_handle, unsigned int adc_id);
+void adc_open(adc_handle_t *adc_handle);
+unsigned int adc_read(adc_handle_t *adc_handle);
+void adc_set_channel(adc_handle_t *adc_handle, unsigned int channel);
+void adc_close(adc_handle_t *adc_handle);
 
 #endif

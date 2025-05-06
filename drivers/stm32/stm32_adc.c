@@ -52,17 +52,17 @@ static void adc_clk_enable(unsigned int adcid)
     }
 }
 
-adc_handle_t adc_open(unsigned int adcid)
+void adc_handle_init(adc_handle_t *adc_handle, unsigned int adcid)
 {
-    struct stm32_adc *adc;
-
     LOG_ASSERT(adcid < ADC_INDEX_MAX);
 
-    adc = &adc_list[adcid];
-    if (adc->adc->CR)
-        return adc;
-
     adc_clk_enable(adcid);
+    adc_handle->user_data = &adc_list[adcid];
+}
+
+void adc_open(adc_handle_t *adc_handle)
+{
+    struct stm32_adc *adc = adc_handle->user_data;
     // 效准
     adc->adc->CR = ADC_CR_ADVREGEN;
     for (volatile unsigned int i = 0; i < 1000; i++);   //必须加入延时，否则会死机
@@ -72,39 +72,28 @@ adc_handle_t adc_open(unsigned int adcid)
     adc->adc->CFGR2 = ADC_CFGR2_CKMODE_0;
     adc->adc->SMPR  = 4;    //19.5 clock cycles
     adc->adc->CR    |= ADC_CR_ADEN;    //ADC enable
-
-    return adc;
 }
 
-unsigned int adc_read(adc_handle_t adc)
+unsigned int adc_read(adc_handle_t *adc_handle)
 {
-    struct stm32_adc *p;
-    LOG_ASSERT(adc != 0);
-    p = adc;
+    struct stm32_adc *adc = adc_handle->user_data;
 
-    p->adc->CR |= ADC_CR_ADSTART;
+    adc->adc->CR |= ADC_CR_ADSTART;
+    while (!(adc->adc->ISR & ADC_ISR_EOC));
 
-    while (!(p->adc->ISR & ADC_ISR_EOC));
-
-    return p->adc->DR * 3300ul / 4096ul;
+    return adc->adc->DR * 3300ul / 4096ul;
 }
 
-void adc_set_channel(adc_handle_t adc, unsigned int channel)
+void adc_set_channel(adc_handle_t *adc_handle, unsigned int channel)
 {
-    struct stm32_adc *p;
-    LOG_ASSERT(adc != 0);
-    p = adc;
-
-    p->adc->CHSELR = 1 << channel;
+    struct stm32_adc *adc = adc_handle->user_data;
+    adc->adc->CHSELR = 1 << channel;
 }
 
-void adc_close(adc_handle_t adc)
+void adc_close(adc_handle_t *adc_handle)
 {
-    struct stm32_adc *p;
-    LOG_ASSERT(adc != 0);
-    p = adc;
-
-    p->adc->CR |= ADC_CR_ADDIS;
+    struct stm32_adc *adc = adc_handle->user_data;
+    adc->adc->CR |= ADC_CR_ADDIS;
 }
 
 #endif

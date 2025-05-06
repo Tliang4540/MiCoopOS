@@ -93,7 +93,7 @@ void log_printf(const char *format, ...)
     }
 
     va_end(args);
-    serial_write(m_serial, log_buf, written);
+    serial_write(&m_serial, log_buf, written);
     log_lock = 0;
 }
 
@@ -125,7 +125,7 @@ void log_dump(const void *data, unsigned size)
         //     size = 0;
         // }
     }
-    serial_write(m_serial, log_buf, buf_index);
+    serial_write(&m_serial, log_buf, buf_index);
     log_lock = 0;
 }
 
@@ -139,8 +139,8 @@ void log_assert(const char *ex_str, const char *func, unsigned int line)
 
 void log_init(unsigned serial_id, unsigned baud)
 {
-    m_serial = serial_init(serial_id);
-    serial_open(m_serial, baud);
+    serial_handle_init(&m_serial, serial_id);
+    serial_open(&m_serial, baud);
 }
 
 #endif

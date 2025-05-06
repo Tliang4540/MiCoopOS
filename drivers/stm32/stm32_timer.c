@@ -253,15 +253,17 @@ static void timer_clk_enable(unsigned int timerid)
     }
 }
 
-timer_handle_t timer_open(unsigned int timerid, unsigned int freq, void (*hdr)(void))
+void timer_handle_init(timer_handle_t *timer_handle, unsigned int timerid)
 {
-    struct stm32_timer *timer;
-
     LOG_ASSERT(timerid < TIMER_INDEX_MAX);
 
-    timer = &timer_list[timerid];
-
     timer_clk_enable(timerid);
+    timer_handle->user_data = &timer_list[timerid];
+}
+
+void timer_open(timer_handle_t *timer_handle, unsigned int freq, void (*hdr)(void))
+{
+    struct stm32_timer *timer = timer_handle->user_data;
 
     timer->tim->PSC = SystemCoreClock / freq - 1;
 
@@ -271,54 +273,44 @@ timer_handle_t timer_open(unsigned int timerid, unsigned int freq, void (*hdr)(v
         NVIC_SetPriority(timer->irq, 3);
         NVIC_EnableIRQ(timer->irq);
     }
-
-    return timer;
 }
 
-void timer_start(timer_handle_t timer, unsigned int interval)
+void timer_start(timer_handle_t *timer_handle, unsigned int interval)
 {
-    struct stm32_timer *ptimer = timer;
+    struct stm32_timer *timer = timer_handle->user_data;
 
-    LOG_ASSERT(ptimer != 0);
-
-    ptimer->tim->ARR = interval - 1;
-    ptimer->tim->EGR = 1;
-    ptimer->tim->SR = 0;
-    ptimer->tim->DIER = 1;
-    ptimer->tim->CR1 = 1;
+    timer->tim->ARR = interval - 1;
+    timer->tim->EGR = 1;
+    timer->tim->SR = 0;
+    timer->tim->DIER = 1;
+    timer->tim->CR1 = 1;
 }
 
-void timer_stop(timer_handle_t timer)
+void timer_stop(timer_handle_t *timer_handle)
 {
-    struct stm32_timer *ptimer = timer;
+    struct stm32_timer *timer = timer_handle->user_data;
 
-    LOG_ASSERT(ptimer != 0);
-
-    ptimer->tim->DIER = 0;
-    ptimer->tim->CR1 = 0;
-    ptimer->tim->SR = 0;
+    timer->tim->DIER = 0;
+    timer->tim->CR1 = 0;
+    timer->tim->SR = 0;
 }
 
-void timer_close(timer_handle_t timer)
+void timer_close(timer_handle_t *timer_handle)
 {
-    struct stm32_timer *ptimer = timer;
+    struct stm32_timer *timer = timer_handle->user_data;
 
-    LOG_ASSERT(ptimer != 0);
-
-    ptimer->tim->DIER = 0;
-    ptimer->tim->CR1 = 0;
-    ptimer->tim->CNT = 0;
-    NVIC_DisableIRQ(ptimer->irq);
-    ptimer->hdr = 0;
+    timer->tim->DIER = 0;
+    timer->tim->CR1 = 0;
+    timer->tim->CNT = 0;
+    NVIC_DisableIRQ(timer->irq);
+    timer->hdr = 0;
 }
 
-unsigned int timer_read(timer_handle_t timer)
+unsigned int timer_read(timer_handle_t *timer_handle)
 {
-    struct stm32_timer *ptimer = timer;
+    struct stm32_timer *timer = timer_handle->user_data;
 
-    LOG_ASSERT(ptimer != 0);
-
-    return ptimer->tim->CNT;
+    return timer->tim->CNT;
 }
 
 static void timer_irq_handler(struct stm32_timer *timer)

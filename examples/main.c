@@ -45,6 +45,6 @@ int main(void)
     mc_task_init(hello_task, "Hello MiCoopOS.", hello_task_stack, sizeof(hello_task_stack));
     flash_test();
 
-    systick_init(mc_tick_handler);
+    systick_init(1000, mc_tick_handler);
     mc_start();
 }

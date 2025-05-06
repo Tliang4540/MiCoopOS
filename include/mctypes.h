@@ -40,4 +40,16 @@ struct mc_slist_node
 };
 typedef struct mc_slist_node mc_slist_t;
 
+struct mc_tm
+{
+    unsigned int sec;
+    unsigned int min;
+    unsigned int hour;
+    unsigned int wday;
+    unsigned int mday;
+    unsigned int mon;
+    unsigned int year;
+};
+typedef struct mc_tm mc_tm_t;
+
 #endif
