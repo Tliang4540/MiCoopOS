@@ -52,17 +52,9 @@ static void adc_clk_enable(unsigned int adcid)
     }
 }
 
-void adc_handle_init(adc_handle_t *adc_handle, unsigned int adcid)
+static int stm32_adc_open(adc_device_t *dev)
 {
-    LOG_ASSERT(adcid < ADC_INDEX_MAX);
-
-    adc_clk_enable(adcid);
-    adc_handle->user_data = &adc_list[adcid];
-}
-
-void adc_open(adc_handle_t *adc_handle)
-{
-    struct stm32_adc *adc = adc_handle->user_data;
+    struct stm32_adc *adc = dev->user_data;
     // 效准
     adc->adc->CR = ADC_CR_ADVREGEN;
     for (volatile unsigned int i = 0; i < 1000; i++);   //必须加入延时，否则会死机
@@ -72,11 +64,12 @@ void adc_open(adc_handle_t *adc_handle)
     adc->adc->CFGR2 = ADC_CFGR2_CKMODE_0;
     adc->adc->SMPR  = 4;    //19.5 clock cycles
     adc->adc->CR    |= ADC_CR_ADEN;    //ADC enable
+    return 0;
 }
 
-unsigned int adc_read(adc_handle_t *adc_handle)
+static int stm32_adc_read(adc_device_t *dev)
 {
-    struct stm32_adc *adc = adc_handle->user_data;
+    struct stm32_adc *adc = dev->user_data;
 
     adc->adc->CR |= ADC_CR_ADSTART;
     while (!(adc->adc->ISR & ADC_ISR_EOC));
@@ -84,16 +77,34 @@ unsigned int adc_read(adc_handle_t *adc_handle)
     return adc->adc->DR * 3300ul / 4096ul;
 }
 
-void adc_set_channel(adc_handle_t *adc_handle, unsigned int channel)
+static int stm32_adc_set_channel(adc_device_t *dev, unsigned int channel)
 {
-    struct stm32_adc *adc = adc_handle->user_data;
+    struct stm32_adc *adc = dev->user_data;
     adc->adc->CHSELR = 1 << channel;
+    return 0;
 }
 
-void adc_close(adc_handle_t *adc_handle)
+static int stm32_adc_close(adc_device_t *dev)
 {
-    struct stm32_adc *adc = adc_handle->user_data;
+    struct stm32_adc *adc = dev->user_data;
     adc->adc->CR |= ADC_CR_ADDIS;
+    return 0;
+}
+
+static const struct adc_device_ops stm32_adc_ops = {
+    .open = stm32_adc_open,
+    .close = stm32_adc_close,
+    .read = stm32_adc_read,
+    .set_channel = stm32_adc_set_channel
+};
+
+void adc_device_init(adc_device_t *dev, unsigned int adc_id)
+{ 
+    LOG_ASSERT(adc_id < ADC_INDEX_MAX);
+
+    adc_clk_enable(adc_id);
+    dev->ops = &stm32_adc_ops;
+    dev->user_data = &adc_list[adc_id];
 }
 
 #endif
