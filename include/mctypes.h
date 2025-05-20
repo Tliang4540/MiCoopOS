@@ -40,6 +40,13 @@ struct mc_slist_node
 };
 typedef struct mc_slist_node mc_slist_t;
 
+struct mc_object
+{
+    struct mc_slist_node list_node;
+    const char *name;
+};
+typedef struct mc_object mc_object_t;
+
 struct mc_tm
 {
     unsigned int sec;

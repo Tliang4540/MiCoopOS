@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2025 ljyan
  */
-#include <mclib.h>
+#include <mcutils.h>
 
 unsigned int mc_utoa(unsigned int val, char *str, unsigned int radix)
 {

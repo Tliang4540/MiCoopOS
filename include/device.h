@@ -21,8 +21,7 @@ typedef struct device_ops device_ops_t;
 
 struct device
 {
-    mc_slist_t list_node;
-    const char *name;
+    struct mc_object parent;
     const struct device_ops *ops;
     void *user_data;
 };
@@ -53,7 +52,7 @@ static inline int device_ioctrl(device_t *dev, int cmd, void *args)
     return dev->ops->ioctrl(dev, cmd, args);
 }
 
-void device_add(device_t *dev, const char *name);
-device_t *device_find(const char *name);
+void device_add(mc_object_t *dev, const char *name);
+mc_object_t *device_find(const char *name);
 
 #endif

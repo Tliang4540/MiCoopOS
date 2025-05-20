@@ -6,7 +6,7 @@
 #ifndef __MCLIB_H__
 #define __MCLIB_H__
 
-#include <mctypes.h>
+#include "mctypes.h"
 
 unsigned int mc_utoa(unsigned int val, char *str, unsigned int radix);
 

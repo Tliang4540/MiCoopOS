@@ -17,7 +17,7 @@ add_library(micoopos
     src/device.c
     src/ringbuffer.c
     src/log.c
-    src/mclib.c
+    src/mcutils.c
 )
 
 target_link_libraries(micoopos PRIVATE archlib driverslib)

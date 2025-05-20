@@ -6,12 +6,12 @@
 #include <device.h>
 #include <string.h>
 
-static device_t *device_list_head;
-static device_t *device_list_tail;
+static mc_object_t *device_list_head;
+static mc_object_t *device_list_tail;
 
-device_t *device_find(const char *name)
+mc_object_t *device_find(const char *name)
 {
-    device_t *dev = device_list_head;
+    mc_object_t *dev = device_list_head;
 
     while(dev != NULL)
     {
@@ -19,13 +19,13 @@ device_t *device_find(const char *name)
         {
             return dev;
         }
-        dev = (device_t*)dev->list_node.next;
+        dev = (mc_object_t*)dev->list_node.next;
     }
 
     return NULL;
 }
 
-void device_add(device_t *dev, const char *name)
+void device_add(mc_object_t *dev, const char *name)
 {
     dev->name = name;
 
