@@ -80,6 +80,9 @@ static int stm32_adc_read(adc_device_t *dev)
 static int stm32_adc_set_channel(adc_device_t *dev, unsigned int channel)
 {
     struct stm32_adc *adc = dev->user_data;
+#if defined(STM32G0)
+    adc->adc->ISR = ADC_ISR_CCRDY;
+#endif
     adc->adc->CHSELR = 1 << channel;
     return 0;
 }
