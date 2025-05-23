@@ -21,7 +21,7 @@ static int led_write(struct device *dev, const void *data, unsigned size)
     return 0;
 }
 
-static struct device_ops led_ops = {
+static const struct device_ops led_ops = {
     .open = led_open,
     .write = led_write,
 };

@@ -11,7 +11,8 @@ include(${MICOOPOS_PATH}/cmake/arm_toolchain.cmake)
 
 # log config
 set(LOG_LEVEL 3)
-option(LOG_COLOR_ENABLE "Enable log color" ON)
+option(LOG_COLOR_ENABLE "Enable log color" OFF)
+option(LOG_ASSERT_ENABLE "Enable log assert" OFF)
 
 # MiCoopOS config
 option(MC_TASK_GET_FREE_STACK_ENABLE "Enable get free stack" ON)
