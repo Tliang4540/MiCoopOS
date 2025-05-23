@@ -65,40 +65,31 @@
 #define AUDIO_TIM              TIM7
 #endif
 
-#define AUDIO_RATE              (14650)
 #define AUDIO_BITS              (10)
 
 struct audio_drv
 {
-    pwm_handle_t pwm;
+    pwm_device_t pwm;
     unsigned int channel;
+    unsigned int sample_rate;
     audio_callback_t callback;
-    unsigned int index;
     unsigned short buffer[2][256];
 };
 
 static struct audio_drv _audio;
 
-void audio_handle_init(audio_handle_t *audio_handle, unsigned int dac_id, unsigned int channel)
-{
-    AUDIO_DMA_CLK_ENABLE();
-    AUDIO_TIM_CLK_ENABLE();
-    pwm_handle_init(&_audio.pwm, dac_id);
-    _audio.channel = channel;
-    audio_handle->user_data = &_audio;
-}
-
-void audio_open(audio_handle_t *audio_handle)
+static int stm32_audio_open(audio_device_t *dev)
 {
     uint32_t ccr_addr;
-    struct audio_drv *audio = audio_handle->user_data;
+    struct audio_drv *audio = dev->user_data;
     unsigned int pwm_period;
-    LL_TIM_SetAutoReload(AUDIO_TIM, SystemCoreClock / AUDIO_RATE - 1);
+    LL_TIM_SetAutoReload(AUDIO_TIM, SystemCoreClock / audio->sample_rate - 1);
     LL_TIM_EnableDMAReq_UPDATE(AUDIO_TIM);
 
-    pwm_open(&audio->pwm);
     pwm_period = 1000000000 / (SystemCoreClock / (1 << AUDIO_BITS));
-    pwm_set(&audio->pwm, audio->channel, pwm_period, pwm_period / 2);
+    pwm_set_period(&audio->pwm, pwm_period);
+    pwm_set_channel_pulse(&audio->pwm, audio->channel, pwm_period / 2);
+    pwm_open(&audio->pwm);
     switch(audio->channel)
     {
     case 0:
@@ -129,11 +120,13 @@ void audio_open(audio_handle_t *audio_handle)
     NVIC_EnableIRQ(AUDIO_DMA_IRQ);
     LL_DMA_EnableIT_TC(DMA1, AUDIO_DMA_CHANNEL);
     LL_DMA_EnableIT_HT(DMA1, AUDIO_DMA_CHANNEL);
+
+    return 0;
 }
 
-void audio_play_start(audio_handle_t *audio_handle, audio_callback_t callback)
+static int stm32_audio_play(audio_device_t *dev, audio_callback_t callback)
 {
-    struct audio_drv *audio = audio_handle->user_data;
+    struct audio_drv *audio = dev->user_data;
     audio->callback = callback;
     callback(audio->buffer[1], sizeof(audio->buffer[1]));
     for (unsigned int i = 0; i < (sizeof(audio->buffer[0]) / sizeof(audio->buffer[0][0])); i++)
@@ -143,16 +136,49 @@ void audio_play_start(audio_handle_t *audio_handle, audio_callback_t callback)
     LL_TIM_GenerateEvent_UPDATE(AUDIO_TIM);
     LL_DMA_EnableChannel(DMA1, AUDIO_DMA_CHANNEL);
     LL_TIM_EnableCounter(AUDIO_TIM);
-    pwm_enable(&audio->pwm, audio->channel);
+    pwm_enable_channel(&audio->pwm, audio->channel);
+    return 0;
 }
 
-void audio_play_stop(audio_handle_t *audio_handle)
+static int stm32_audio_stop(audio_device_t *dev)
 {
-    struct audio_drv *audio = audio_handle->user_data;
+    struct audio_drv *audio = dev->user_data;
+    unsigned int pwm_pulse;
     LL_TIM_DisableCounter(AUDIO_TIM);
     LL_DMA_DisableChannel(DMA1, AUDIO_DMA_CHANNEL);
     LL_DMA_SetDataLength(DMA1, AUDIO_DMA_CHANNEL, 0);
-    pwm_disable(&audio->pwm, audio->channel);
+    pwm_pulse = 1000000000 / (SystemCoreClock / (1 << AUDIO_BITS)) / 2;
+    pwm_set_channel_pulse(&audio->pwm, audio->channel, pwm_pulse);
+    audio->callback = 0;
+    return 0;
+}
+
+static int stm32_audio_close(audio_device_t *dev)
+{
+    struct audio_drv *audio = dev->user_data;
+    if (audio->callback)
+        stm32_audio_stop(dev);
+    pwm_disable_channel(&audio->pwm, audio->channel);
+    return 0;
+}
+
+static const struct audio_device_ops stm32_audio_ops =
+{
+    .open = stm32_audio_open,
+    .close = stm32_audio_close,
+    .play = stm32_audio_play,
+    .stop = stm32_audio_stop,
+};
+
+void audio_device_init(audio_device_t *dev, unsigned int dac_id, unsigned int channel, unsigned int sample_rate)
+{
+    AUDIO_DMA_CLK_ENABLE();
+    AUDIO_TIM_CLK_ENABLE();
+    pwm_device_init(&_audio.pwm, dac_id);
+    _audio.channel = channel;
+    _audio.sample_rate = sample_rate;
+    dev->ops = &stm32_audio_ops;
+    dev->user_data = &_audio;
 }
 
 #if defined(STM32G0)

@@ -36,7 +36,7 @@ static void led_task(void *arg)
 {
     device_t *led_dev;
     MC_UNUSED(arg);
-    led_dev = device_find("led");
+    led_dev = (device_t*)device_find("led");
     device_open(led_dev);
 
     while (1)
@@ -50,7 +50,7 @@ static void led_task(void *arg)
 
 void led_dev_test(void)
 {
-    device_add(&led_dev, "led");
+    device_add((mc_object_t*)&led_dev, "led");
 
     mc_task_init(led_task, NULL, led_task_stack, sizeof(led_task_stack));
 }

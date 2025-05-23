@@ -6,6 +6,8 @@
 #ifndef __SPI_H__
 #define __SPI_H__
 
+#include <mctypes.h>
+
 #define SPI_CPHA        (1 << 0)
 #define SPI_CPOL        (1 << 1)
 
@@ -26,24 +28,58 @@
 #define SPI_MODE2       (SPI_CPOL | 0)
 #define SPI_MODE3       (SPI_CPOL | SPI_CPHA)
 
-typedef struct spi_handle
+#define SPI_FLAG_CS_TAKE     (1 << 0)
+#define SPI_FLAG_CS_RELEASE  (1 << 1)
+
+struct spi_bus;
+typedef struct spi_device
 {
+    struct spi_bus *bus;
     unsigned int cs_pin;
+}spi_device_t;
+
+struct spi_bus_ops
+{
+    int (*send)(struct spi_device *dev, unsigned int flags, const void *data, size_t size);
+    int (*transfer)(struct spi_device *dev, unsigned int flags, void *data, size_t size);
+};
+
+typedef struct spi_bus
+{
+    const struct spi_bus_ops *ops;
     void *user_data;
-}spi_handle_t;
+}spi_bus_t;
 
-void spi_handle_init(spi_handle_t *spi_handle, unsigned int spi_id, unsigned int cs_pin);
-void spi_open(spi_handle_t *spi_handle, unsigned int freq, unsigned int mode);
+void spi_bus_init(spi_bus_t *bus, unsigned int spi_id, unsigned int freq, unsigned int mode);
 
-/**
- * @brief 控制spi传输一次数据
- * @param [inout] data 将data数据发出，同时接收数据到data
- * @param [in] size 传输数据的大小
- * @note 此接口会同时进行发送和接收，并将接收的数据覆盖发送的数据
- */
-void spi_transfer(spi_handle_t *spi_handle, void *data, unsigned int size);
-void spi_send(spi_handle_t *spi_handle, const void *data, unsigned int size);
-void spi_send_then_send(spi_handle_t *spi_handle, const void *send_data1, unsigned int send_size1, const void *send_data2, unsigned int send_size2);
-void spi_send_then_recv(spi_handle_t *spi_handle, const void *send_data, unsigned int send_size, void *recv_data, unsigned int recv_size);
+static inline void spi_device_init(spi_device_t *dev, spi_bus_t *bus, unsigned int cs_pin)
+{
+    dev->bus = bus;
+    dev->cs_pin = cs_pin;
+}
+
+static inline int spi_send(spi_device_t *dev, unsigned int flags, const void *data, size_t size)
+{
+    return dev->bus->ops->send(dev, flags, data, size);
+}
+
+static inline int spi_transfer(spi_device_t *dev, unsigned int flags, void *data, size_t size)
+{
+    return dev->bus->ops->transfer(dev, flags, data, size);
+}
+
+static inline int spi_send_then_send(spi_device_t *dev, const void *data1, size_t size1, const void *data2, size_t size2)
+{
+    int ret1 = spi_send(dev, SPI_FLAG_CS_TAKE, data1, size1);
+    int ret2 = spi_send(dev, SPI_FLAG_CS_RELEASE, data2, size2);
+    return ret1 | ret2;
+}
+
+static inline int spi_send_then_recv(spi_device_t *dev, const void *send_data, size_t send_size, void *recv_data, size_t recv_size)
+{
+    int ret1 = spi_send(dev, SPI_FLAG_CS_TAKE, send_data, send_size);
+    int ret2 = spi_transfer(dev, SPI_FLAG_CS_RELEASE, recv_data, recv_size);
+    return ret1 | ret2;
+}
 
 #endif

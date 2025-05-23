@@ -16,7 +16,19 @@
 #define FLASH_KEY1 0x45670123U
 #define FLASH_KEY2 0xCDEF89ABU
 
-static int onchip_flash_read(flash_dev_t *dev, unsigned int offset, void *buf, unsigned int size)
+static int stm32g0_flash_open(flash_device_t *dev)
+{
+    MC_UNUSED(dev);
+    return 0;
+}
+
+static int stm32g0_flash_close(flash_device_t *dev)
+{
+    MC_UNUSED(dev);
+    return 0;
+}
+
+static int stm32g0_flash_read(flash_device_t *dev, unsigned int offset, void *buf, unsigned int size)
 {
     LOG_ASSERT(offset + size <= dev->size);
 
@@ -25,7 +37,7 @@ static int onchip_flash_read(flash_dev_t *dev, unsigned int offset, void *buf, u
     return size;
 }
 
-static int onchip_flash_write(flash_dev_t *dev, unsigned int offset, const void *buf, unsigned int size)
+static int stm32g0_flash_write(flash_device_t *dev, unsigned int offset, const void *buf, unsigned int size)
 {
     LOG_ASSERT(offset + size <= dev->size);
     LOG_ASSERT(offset % 8 == 0);
@@ -67,7 +79,7 @@ static int onchip_flash_write(flash_dev_t *dev, unsigned int offset, const void 
     return ret;
 }
 
-static int onchip_flash_erase(flash_dev_t *dev, unsigned int offset, unsigned int size)
+static int stm32g0_flash_erase(flash_device_t *dev, unsigned int offset, unsigned int size)
 {
     LOG_ASSERT(offset + size <= dev->size);
     LOG_ASSERT(offset % FLASH_SECTOR_SIZE == 0);
@@ -104,20 +116,23 @@ static int onchip_flash_erase(flash_dev_t *dev, unsigned int offset, unsigned in
     return ret;
 }
 
-int onchip_flash_init(flash_dev_t *dev, void *user_data, unsigned int base_addr, unsigned int size)
+static const struct flash_device_ops onchip_flash_ops = {
+    .open = stm32g0_flash_open,
+    .close = stm32g0_flash_close,
+    .write = stm32g0_flash_write,
+    .read = stm32g0_flash_read,
+    .erase = stm32g0_flash_erase,
+};
+
+void onchip_flash_device_init(flash_device_t *dev, unsigned int base_addr, unsigned int size)
 {
-    (void)user_data;
     LOG_ASSERT(base_addr % FLASH_SECTOR_SIZE == 0);
     LOG_ASSERT(size % FLASH_SECTOR_SIZE == 0);
     dev->base_addr = base_addr;
     dev->size = size;
     dev->sec_size = FLASH_SECTOR_SIZE;
     dev->write_grain = 8;
-    dev->read = onchip_flash_read;
-    dev->write = onchip_flash_write;
-    dev->erase = onchip_flash_erase;
-
-    return 0;
+    dev->ops = &onchip_flash_ops;
 }
 
 #endif

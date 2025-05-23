@@ -49,8 +49,8 @@ static void flash_test_task(void *arg)
 
 void flash_test(void)
 {
-    static flash_dev_t flash;
-    onchip_flash_init(&flash, NULL, 0x08000000 + 50 * 1024, 14 * 1024);
+    static flash_device_t flash;
+    onchip_flash_device_init(&flash, 0x08000000 + 50 * 1024, 14 * 1024);
 
     mc_task_init(flash_test_task, &flash, flash_test_stack, sizeof(flash_test_stack));
 }

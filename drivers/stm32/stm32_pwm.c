@@ -189,63 +189,38 @@ static void pwm_clk_enable(unsigned int pwmid)
     }
 }
 
-void pwm_handle_init(pwm_handle_t *pwm_handle, unsigned int pwm_id)
+static int stm32_pwm_open(pwm_device_t *dev)
 {
-    LOG_ASSERT(pwm_id < PWM_INDEX_MAX);
-
-    pwm_clk_enable(pwm_id);
-    pwm_handle->user_data = &pwm_list[pwm_id];
-}
-
-void pwm_open(pwm_handle_t *pwm_handle)
-{
-    struct stm32_pwm *pwm = pwm_handle->user_data;
+    struct stm32_pwm *pwm = dev->user_data;
 
     pwm->tim->EGR = 1;
     pwm->tim->SR = 0;
 #if defined(STM32G0) || defined(STM32F0)
     pwm->tim->BDTR = TIM_BDTR_MOE;
 #endif
+    pwm->tim->CR1 = TIM_CR1_CEN | TIM_CR1_ARPE;
+
+    return 0;
 }
 
-void pwm_set(pwm_handle_t *pwm_handle, unsigned int channel, unsigned int period, unsigned int pulse)
+static int stm32_pwm_set_period(pwm_device_t *dev, unsigned int period)
 {
-    struct stm32_pwm *pwm = pwm_handle->user_data;
+    struct stm32_pwm *pwm = dev->user_data;
     unsigned int psc;
     unsigned int tim_clock = SystemCoreClock / 1000000UL;
 
     period = period * tim_clock / 1000UL;
     psc = period / 65535 + 1;
     period = period / psc - 1;
-    pulse = pulse * tim_clock / psc / 1000ULL;
 
     pwm->tim->PSC = psc - 1;
     pwm->tim->ARR = period;
-
-    switch (channel)
-    {
-    case 0:
-        pwm->tim->CCR1 = pulse;
-        pwm->tim->CCMR1 |= TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1;
-        break;
-    case 1:
-        pwm->tim->CCR2 = pulse;
-        pwm->tim->CCMR1 |= TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
-        break;
-    case 2: 
-        pwm->tim->CCR3 = pulse;
-        pwm->tim->CCMR2 |= TIM_CCMR2_OC3PE | TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
-        break;
-    default:
-        pwm->tim->CCR4 = pulse;
-        pwm->tim->CCMR2 |= TIM_CCMR2_OC4PE | TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1;
-        break;
-    }
+    return 0;
 }
 
-void pwm_set_pulse(pwm_handle_t *pwm_handle, unsigned int channel, unsigned int pulse)
+static int stm32_pwm_set_channel_pulse(pwm_device_t *dev, unsigned int channel, unsigned int pulse)
 {
-    struct stm32_pwm *pwm = pwm_handle->user_data;
+    struct stm32_pwm *pwm = dev->user_data;
     unsigned int psc;
     unsigned int tim_clock = SystemCoreClock / 1000000UL;
 
@@ -267,65 +242,96 @@ void pwm_set_pulse(pwm_handle_t *pwm_handle, unsigned int channel, unsigned int 
         pwm->tim->CCR4 = pulse;
         break;
     }
+    return 0;
 }
 
-void pwm_enable(pwm_handle_t *pwm_handle, unsigned int channel)
+static int stm32_pwm_enable_channel(pwm_device_t *dev, unsigned int channel)
 {
-    struct stm32_pwm *pwm = pwm_handle->user_data;
-
+    struct stm32_pwm *pwm = dev->user_data;
     switch (channel)
     {
     case 0:
+        pwm->tim->CCMR1 |= TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1;
         pwm->tim->CCER |= TIM_CCER_CC1E;
         break;
     case 1:
+        pwm->tim->CCMR1 |= TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1;
         pwm->tim->CCER |= TIM_CCER_CC2E;
         break;
     case 2:
+        pwm->tim->CCMR2 |= TIM_CCMR2_OC3PE | TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1;
         pwm->tim->CCER |= TIM_CCER_CC3E;
         break;
     case 3:
+        pwm->tim->CCMR2 |= TIM_CCMR2_OC4PE | TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1;
         pwm->tim->CCER |= TIM_CCER_CC4E;
         break;
     default:
         break;
     }
-    pwm->tim->CR1 = TIM_CR1_CEN;
+    return 0;
 }
 
-void pwm_disable(pwm_handle_t *pwm_handle, unsigned int channel)
+static int stm32_pwm_disable_channel(pwm_device_t *dev, unsigned int channel)
 {
-    struct stm32_pwm *pwm = pwm_handle->user_data;
-
+    struct stm32_pwm *pwm = dev->user_data;
     switch (channel)
     {
     case 0:
         pwm->tim->CCER &= ~TIM_CCER_CC1E;
+        pwm->tim->CCMR1 &= ~(TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_1);
         break;
     case 1:
         pwm->tim->CCER &= ~TIM_CCER_CC2E;
+        pwm->tim->CCMR1 &= ~(TIM_CCMR1_OC2PE | TIM_CCMR1_OC2M_2 | TIM_CCMR1_OC2M_1);
         break;
     case 2:
         pwm->tim->CCER &= ~TIM_CCER_CC3E;
+        pwm->tim->CCMR2 &= ~(TIM_CCMR2_OC3PE | TIM_CCMR2_OC3M_2 | TIM_CCMR2_OC3M_1);
         break;
     case 3:
         pwm->tim->CCER &= ~TIM_CCER_CC4E;
+        pwm->tim->CCMR2 &= ~(TIM_CCMR2_OC4PE | TIM_CCMR2_OC4M_2 | TIM_CCMR2_OC4M_1);
         break;
     default:
         break;
     }
+    return 0;
 }
 
-void pwm_close(pwm_handle_t *pwm_handle)
+static int stm32_pwm_close(pwm_device_t *dev)
 {
-    struct stm32_pwm *pwm = pwm_handle->user_data;
+    struct stm32_pwm *pwm = dev->user_data;
 
     pwm->tim->CR1 = 0;
     pwm->tim->SR = 0;
     pwm->tim->CCER = 0;
+    pwm->tim->CCMR1 = 0;
+    pwm->tim->CCMR2 = 0;
 #if defined(STM32G0) || defined(STM32F0)
     pwm->tim->BDTR = 0;
 #endif
+    return 0;
+}
+
+
+static const struct pwm_device_ops stm32_pwm_ops = 
+{
+    .open = stm32_pwm_open,
+    .close = stm32_pwm_close,
+    .set_period = stm32_pwm_set_period,
+    .set_channel_pulse = stm32_pwm_set_channel_pulse,
+    .enable_channel = stm32_pwm_enable_channel,
+    .disable_channel = stm32_pwm_disable_channel
+};
+
+void pwm_device_init(pwm_device_t *dev, unsigned int pwm_id)
+{
+    LOG_ASSERT(pwm_id < PWM_INDEX_MAX);
+
+    pwm_clk_enable(pwm_id);
+    dev->ops = &stm32_pwm_ops;
+    dev->user_data = &pwm_list[pwm_id];
 }
 
 #endif

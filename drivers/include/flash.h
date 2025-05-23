@@ -6,61 +6,69 @@
 #ifndef __FLASH_H__
 #define __FLASH_H__
 
-typedef struct flash_dev
+#include <mctypes.h>
+
+struct flash_device;
+struct flash_device_ops
 {
+    int (*open)(struct flash_device *dev);
+    int (*close)(struct flash_device *dev);
+    int (*write)(struct flash_device *dev, unsigned int offset, const void *buf, size_t size);
+    int (*read)(struct flash_device *dev, unsigned int offset, void *buf, size_t size);
+    int (*erase)(struct flash_device *dev, unsigned int offset, size_t size);
+};
+
+typedef struct flash_device
+{
+    struct mc_object parent;
     unsigned int base_addr;
     unsigned int size;
     unsigned int sec_size;
     unsigned int write_grain;
+    const struct flash_device_ops *ops;
     void *user_data;
-    int (*read)(struct flash_dev *dev, unsigned int offset, void *buf, unsigned int size);
-    int (*write)(struct flash_dev *dev, unsigned int offset, const void *buf, unsigned int size);
-    int (*erase)(struct flash_dev *dev, unsigned int offset, unsigned int size);
-    void (*enter_sleep)(struct flash_dev *dev);
-    void (*exit_sleep)(struct flash_dev *dev);
-}flash_dev_t;
+}flash_device_t;
 
-static inline int flash_read(struct flash_dev *dev, unsigned int offset, void *buf, unsigned int size)
+static inline int flash_open(struct flash_device *dev)
 {
-    return dev->read(dev, offset, buf, size);
+    return dev->ops->open(dev);
 }
 
-static inline int flash_write(struct flash_dev *dev, unsigned int offset, const void *buf, unsigned int size)
+static inline int flash_close(struct flash_device *dev)
 {
-    return dev->write(dev, offset, buf, size);
+    return dev->ops->close(dev);
 }
 
-static inline int flash_erase(struct flash_dev *dev, unsigned int offset, unsigned int size)
+static inline int flash_read(struct flash_device *dev, unsigned int offset, void *buf, unsigned int size)
 {
-    return dev->erase(dev, offset, size);
+    return dev->ops->read(dev, offset, buf, size);
 }
 
-static inline void flash_enter_sleep(struct flash_dev *dev)
+static inline int flash_write(struct flash_device *dev, unsigned int offset, const void *buf, unsigned int size)
 {
-    dev->enter_sleep(dev);
+    return dev->ops->write(dev, offset, buf, size);
 }
 
-static inline void flash_exit_sleep(struct flash_dev *dev)
+static inline int flash_erase(struct flash_device *dev, unsigned int offset, unsigned int size)
 {
-    dev->exit_sleep(dev);
+    return dev->ops->erase(dev, offset, size);
 }
 
-static inline unsigned int flash_get_sec_size(struct flash_dev *dev)
+static inline unsigned int flash_get_sec_size(struct flash_device *dev)
 {
     return dev->sec_size;
 }
 
-static inline unsigned int flash_get_size(struct flash_dev *dev)
+static inline unsigned int flash_get_size(struct flash_device *dev)
 {
     return dev->size;
 }
 
-static inline unsigned int flash_get_write_grain(struct flash_dev *dev)
+static inline unsigned int flash_get_write_grain(struct flash_device *dev)
 {
     return dev->write_grain;
 }
 
-int spiflash_init(flash_dev_t *dev, void *user_data, unsigned int base_addr, unsigned int size);
-int onchip_flash_init(flash_dev_t *dev, void *user_data, unsigned int base_addr, unsigned int size);
+void onchip_flash_device_init(flash_device_t *dev, unsigned int base_addr, unsigned int size);
 
 #endif

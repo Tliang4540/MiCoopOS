@@ -6,15 +6,28 @@
 #ifndef __SERIAL_H__
 #define __SERIAL_H__
 
-typedef struct 
-{
-    void *user_data;
-}serial_handle_t;
+#include <device.h>
 
-void serial_handle_init(serial_handle_t *serial_handle, unsigned int serial_id);
-void serial_open(serial_handle_t *serial_handle, unsigned int baudrate);
-void serial_close(serial_handle_t *serial_handle);
-void serial_write(serial_handle_t *serial_handle, const void *data, unsigned int size);
-unsigned int serial_read(serial_handle_t *serial_handle, void *data, unsigned int size);
+static inline int serial_open(device_t *dev)
+{
+    return dev->ops->open(dev);
+}
+
+static inline int serial_close(device_t *dev)
+{
+    return dev->ops->close(dev);
+}
+
+static inline int serial_write(device_t *dev, const void *buf, size_t size)
+{
+    return dev->ops->write(dev, buf, size);
+}
+
+static inline int serial_read(device_t *dev, void *buf, size_t size)
+{
+    return dev->ops->read(dev, buf, size);
+}
+
+void serial_device_init(device_t *dev, unsigned int serial_id, unsigned int baudrate);
 
 #endif

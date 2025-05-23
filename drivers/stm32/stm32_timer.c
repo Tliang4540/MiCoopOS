@@ -253,64 +253,65 @@ static void timer_clk_enable(unsigned int timerid)
     }
 }
 
-void timer_handle_init(timer_handle_t *timer_handle, unsigned int timerid)
+static int stm32_timer_start(timer_device_t *dev, unsigned int interval)
 {
-    LOG_ASSERT(timerid < TIMER_INDEX_MAX);
-
-    timer_clk_enable(timerid);
-    timer_handle->user_data = &timer_list[timerid];
-}
-
-void timer_open(timer_handle_t *timer_handle, unsigned int freq, void (*hdr)(void))
-{
-    struct stm32_timer *timer = timer_handle->user_data;
-
-    timer->tim->PSC = SystemCoreClock / freq - 1;
-
-    if (hdr)
-    {
-        timer->hdr = hdr;
-        NVIC_SetPriority(timer->irq, 3);
-        NVIC_EnableIRQ(timer->irq);
-    }
-}
-
-void timer_start(timer_handle_t *timer_handle, unsigned int interval)
-{
-    struct stm32_timer *timer = timer_handle->user_data;
+    struct stm32_timer *timer = dev->user_data;
 
     timer->tim->ARR = interval - 1;
     timer->tim->EGR = 1;
     timer->tim->SR = 0;
-    timer->tim->DIER = 1;
+    if (timer->hdr)
+    {
+        NVIC_SetPriority(timer->irq, 3);
+        NVIC_EnableIRQ(timer->irq);
+        timer->tim->DIER = 1;
+    }
     timer->tim->CR1 = 1;
+    return 0;
 }
 
-void timer_stop(timer_handle_t *timer_handle)
+static int stm32_timer_stop(timer_device_t *dev)
 {
-    struct stm32_timer *timer = timer_handle->user_data;
-
-    timer->tim->DIER = 0;
+    struct stm32_timer *timer = dev->user_data;
     timer->tim->CR1 = 0;
+    timer->tim->DIER = 0;
     timer->tim->SR = 0;
-}
-
-void timer_close(timer_handle_t *timer_handle)
-{
-    struct stm32_timer *timer = timer_handle->user_data;
-
-    timer->tim->DIER = 0;
-    timer->tim->CR1 = 0;
-    timer->tim->CNT = 0;
     NVIC_DisableIRQ(timer->irq);
-    timer->hdr = 0;
+    return 0;
 }
 
-unsigned int timer_read(timer_handle_t *timer_handle)
+static unsigned int stm32_timer_read(timer_device_t *dev)
 {
-    struct stm32_timer *timer = timer_handle->user_data;
+    struct stm32_timer *timer = dev->user_data;
 
     return timer->tim->CNT;
+}
+
+static int stm32_timer_set_callback(timer_device_t *dev, void (*hdr)(void))
+{
+    struct stm32_timer *timer = dev->user_data;
+
+    timer->hdr = hdr;
+    return 0;
+}
+
+static const struct timer_device_ops stm32_timer_ops = 
+{
+    .start = stm32_timer_start,
+    .stop = stm32_timer_stop,
+    .read = stm32_timer_read,
+    .set_callback = stm32_timer_set_callback,
+};
+
+void timer_device_init(timer_device_t *dev, unsigned int timerid, unsigned int freq)
+{
+    LOG_ASSERT(timerid < TIMER_INDEX_MAX);
+
+    timer_clk_enable(timerid);
+    dev->ops = &stm32_timer_ops;
+    dev->user_data = &timer_list[timerid];
+
+    timer_list[timerid].tim->PSC = SystemCoreClock / freq - 1;
 }
 
 static void timer_irq_handler(struct stm32_timer *timer)

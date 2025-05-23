@@ -328,52 +328,37 @@ static void uart_clk_enable(unsigned int port)
     }
 }
 
-void serial_handle_init(serial_handle_t *serial_handle, unsigned int serial_id)
+static int stm32_serial_open(device_t *dev)
 {
-    LOG_ASSERT(serial_id < UART_INDEX_MAX);
-    
-    uart_clk_enable(serial_id);
-    serial_handle->user_data = &uart_list[serial_id];
-}
+    struct stm32_uart *uart = dev->user_data;
 
-void serial_open(serial_handle_t *serial_handle, unsigned int baudrate)
-{
-    struct stm32_uart *uart = serial_handle->user_data;
-    
-    // LPUART使用HSI时钟
-    #if defined(LPUART1)
-    if (uart->uart == LPUART1)
-        uart->uart->BRR = (HSI_VALUE * 256 + baudrate / 2) / baudrate;
-    else
-    #endif
-    #if defined(LPUART2)
-    if (uart->uart == LPUART2)
-        uart->uart->BRR = (HSI_VALUE * 256 + baudrate / 2) / baudrate;
-    else
-    #endif
-        uart->uart->BRR = (SystemCoreClock + baudrate / 2) / baudrate;
-
+    uart->rx_rb.r = 0;
+    uart->rx_rb.w = 0;
+    uart->tx_rb.r = 0;
+    uart->tx_rb.w = 0;
+    uart->uart->CR1 = (1 << 5) | USART_CR1_TE | USART_CR1_RE | USART_CR1_UE;
     NVIC_SetPriority(uart->irq, 3);
     NVIC_EnableIRQ(uart->irq);
-    uart->uart->CR1 = (1 << 5) | USART_CR1_TE | USART_CR1_RE | USART_CR1_UE;
+    return 0;
 }
 
-void serial_close(serial_handle_t *serial_handle)
+static int stm32_serial_close(device_t *dev)
 {
-    struct stm32_uart *uart = serial_handle->user_data;
+    struct stm32_uart *uart = dev->user_data;
 
     uart->uart->CR1 = 0;
     NVIC_DisableIRQ(uart->irq);
+    return 0;
 }
 
-void serial_write(serial_handle_t *serial_handle, const void *data, unsigned int size)
+static int stm32_serial_write(device_t *dev, const void *buf, size_t size)
 {
     struct stm32_uart *uart;
 
     if (size == 0)
-        return;
+        return 0;
 
-    uart = serial_handle->user_data;
+    uart = dev->user_data;
 
     while(uart->lock)
         mc_delay(0);
@@ -381,23 +366,54 @@ void serial_write(serial_handle_t *serial_handle, const void *data, unsigned int
 
     while (1)
     {
-        unsigned int written_size = rb_write(&uart->tx_rb, data, size);
+        unsigned int written_size = rb_write(&uart->tx_rb, buf, size);
         uart->uart->CR1 |= (1 << 7);
         size -= written_size;
 
         if (size == 0)
             break;
         // 没有写完说明缓存满了，等待发送
-        data = (void*)((unsigned)data + written_size);
+        buf = (void*)((unsigned)buf + written_size);
         mc_delay(2);
     }
     uart->lock = 0;
+
+    return size;
 }
 
-unsigned int serial_read(serial_handle_t *serial_handle, void *data, unsigned int size)
+static int stm32_serial_read(device_t *dev, void *buf, size_t size)
 {
-    struct stm32_uart *uart = serial_handle->user_data;
-    return rb_read(&uart->rx_rb, data, size);
+    struct stm32_uart *uart = dev->user_data;
+    return rb_read(&uart->rx_rb, buf, size);
+}
+
+static const struct device_ops stm32_serial_ops = {
+    .open = stm32_serial_open,
+    .close = stm32_serial_close,
+    .write = stm32_serial_write,
+    .read = stm32_serial_read,
+};
+
+void serial_device_init(device_t *dev, unsigned int serial_id, unsigned int baudrate)
+{
+    LOG_ASSERT(serial_id < UART_INDEX_MAX);
+    
+    uart_clk_enable(serial_id);
+    dev->ops = &stm32_serial_ops;
+    dev->user_data = &uart_list[serial_id];
+    
+    // LPUART使用HSI时钟
+    #if defined(LPUART1)
+    if (uart_list[serial_id].uart == LPUART1)
+        uart_list[serial_id].uart->BRR = (HSI_VALUE * 256 + baudrate / 2) / baudrate;
+    else
+    #endif
+    #if defined(LPUART2)
+    if (uart_list[serial_id].uart == LPUART2)
+        uart_list[serial_id].uart->BRR = (HSI_VALUE * 256 + baudrate / 2) / baudrate;
+    else
+    #endif
+        uart_list[serial_id].uart->BRR = (SystemCoreClock + baudrate / 2) / baudrate;
 }
 
 static void uart_irq_handler(struct stm32_uart *uart)

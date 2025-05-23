@@ -6,16 +6,46 @@
 #ifndef __AUDIO_H__
 #define __AUDIO_H__
 
-typedef struct 
-{
-    void *user_data;
-}audio_handle_t;
+#include <mctypes.h>
 
 typedef void (*audio_callback_t)(void *buffer, unsigned int size);
 
-void audio_handle_init(audio_handle_t *audio_handle, unsigned int dac_id, unsigned int channel);
-void audio_open(audio_handle_t *audio_handle);
-void audio_play_start(audio_handle_t *audio_handle, audio_callback_t callback);
-void audio_play_stop(audio_handle_t *audio_handle);
+struct audio_device;
+struct audio_device_ops
+{
+    int (*open)(struct audio_device *dev);
+    int (*close)(struct audio_device *dev);
+    int (*play)(struct audio_device *dev, audio_callback_t callback);
+    int (*stop)(struct audio_device *dev);
+};
+
+typedef struct audio_device
+{
+    struct mc_object parent;
+    const struct audio_device_ops *ops;
+    void *user_data;
+}audio_device_t;
+
+static inline int audio_open(audio_device_t *dev)
+{
+    return dev->ops->open(dev);
+}
+
+static inline int audio_close(audio_device_t *dev)
+{
+    return dev->ops->close(dev);
+}
+
+static inline int audio_play(audio_device_t *dev, audio_callback_t callback)
+{
+    return dev->ops->play(dev, callback);
+}
+
+static inline int audio_stop(audio_device_t *dev)
+{
+    return dev->ops->stop(dev);
+}
+
+void audio_device_init(audio_device_t *dev, unsigned int dac_id, unsigned int channel, unsigned int sample_rate);
 
 #endif

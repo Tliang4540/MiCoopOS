@@ -6,16 +6,39 @@
 #ifndef __TIMER_H__
 #define __TIMER_H__
 
-typedef struct
-{
-    void *user_data;
-}timer_handle_t;
+#include <mctypes.h>
 
-void timer_handle_init(timer_handle_t *timer_handle, unsigned int timerid);
-void timer_open(timer_handle_t *timer_handle, unsigned int freq, void (*callback)(void));
-void timer_start(timer_handle_t *timer, unsigned int interval);
-void timer_stop(timer_handle_t *timer);
-void timer_close(timer_handle_t *timer);
-unsigned int timer_read(timer_handle_t *timer);
+struct timer_device;
+struct timer_device_ops
+{
+    int (*start)(struct timer_device *dev, unsigned int interval);
+    int (*stop)(struct timer_device *dev);
+    unsigned int (*read)(struct timer_device *dev);
+    int (*set_callback)(struct timer_device *dev, void (*hdr)(void));
+};
+
+typedef struct timer_device
+{
+    struct mc_object parent;
+    const struct timer_device_ops *ops;
+    void *user_data;
+}timer_device_t;
+
+static inline int timer_start(timer_device_t *dev, unsigned int interval)
+{
+    return dev->ops->start(dev, interval);
+}
+
+static inline int timer_stop(timer_device_t *dev)
+{
+    return dev->ops->stop(dev);
+}
+
+static inline unsigned int timer_read(timer_device_t *dev)
+{
+    return dev->ops->read(dev);
+}
+
+void timer_device_init(timer_device_t *dev, unsigned int timerid, unsigned int freq);
 
 #endif

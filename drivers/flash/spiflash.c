@@ -5,9 +5,8 @@
  */
 #include <mcos.h>
 #include <log.h>
-#include <spi.h>
-#include <flash.h>
 #include <mcconfig.h>
+#include "spiflash.h"
 
 #if defined (BSP_USING_SPIFLASH)
 
@@ -28,7 +27,7 @@
 #define CMD_DEEP_SLEEP          0xB9
 #define CMD_WAKEUP              0xAB
 
-static int spiflash_wait_busy(flash_dev_t *dev)
+static int spiflash_wait_busy(flash_device_t *dev)
 {
     unsigned char buf[4];
     unsigned int overtime = 100;
@@ -36,7 +35,7 @@ static int spiflash_wait_busy(flash_dev_t *dev)
     while(overtime--)
     {
         buf[0] = CMD_READ_STATUS;
-        spi_transfer(dev->user_data, buf, 2);
+        spi_transfer(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, buf, 2);
         if((buf[1] & 0x01) == 0)
             return 0;
         mc_delay(1);
@@ -45,7 +44,31 @@ static int spiflash_wait_busy(flash_dev_t *dev)
     return -1;
 }
 
-static int spiflash_read(flash_dev_t *dev, unsigned int offset, void *buf, unsigned int size)
+static int spiflash_open(flash_device_t *dev)
+{
+    unsigned char cmd[4];
+
+    cmd[0] = CMD_WAKEUP;
+    spi_send(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 1);
+
+    cmd[0] = CMD_READ_ID;
+    spi_transfer(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 4);
+
+    LOG_I("spiflash id:%x %x %x", cmd[1], cmd[2], cmd[3]);
+    if (cmd[1] == 0xff)
+        return -1;
+    return 0;
+}
+
+static int spiflash_close(flash_device_t *dev)
+{
+    unsigned char cmd[4];
+    cmd[0] = CMD_DEEP_SLEEP;
+    spi_send(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 1);
+    return 0;
+}
+
+static int spiflash_read(flash_device_t *dev, unsigned int offset, void *buf, size_t size)
 {
     unsigned char cmd[4];
 
@@ -65,7 +88,7 @@ static int spiflash_read(flash_dev_t *dev, unsigned int offset, void *buf, unsig
     return size;
 }
 
-static int spiflash_write(flash_dev_t *dev, unsigned int offset, const void *buf, unsigned int size)
+static int spiflash_write(flash_device_t *dev, unsigned int offset, const void *buf, size_t size)
 {
     unsigned int write_size;
     unsigned char cmd[4];
@@ -79,7 +102,7 @@ static int spiflash_write(flash_dev_t *dev, unsigned int offset, const void *buf
             return -1;
 
         cmd[0] = CMD_WRITE_ENABLE;
-        spi_send(dev->user_data, cmd, 1);
+        spi_send(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 1);
 
         cmd[0] = CMD_PAGE_WRITE;
         cmd[1] = (unsigned char)(offset >> 16);
@@ -102,7 +125,7 @@ static int spiflash_write(flash_dev_t *dev, unsigned int offset, const void *buf
     return size;
 }
 
-static int spiflash_erase(flash_dev_t *dev, unsigned int offset, unsigned int size)
+static int spiflash_erase(flash_device_t *dev, unsigned int offset, size_t size)
 {
     unsigned char cmd[4];
 
@@ -117,37 +140,29 @@ static int spiflash_erase(flash_dev_t *dev, unsigned int offset, unsigned int si
             return -1;
 
         cmd[0] = CMD_WRITE_ENABLE;
-        spi_send(dev->user_data, cmd, 1);
+        spi_send(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 1);
 
         cmd[0] = CMD_ERASE_4K;
         cmd[1] = (unsigned char)(offset >> 16);
         cmd[2] = (unsigned char)(offset >> 8);
         cmd[3] = (unsigned char)(offset);
-        spi_send(dev->user_data, cmd, 4);
+        spi_send(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 4);
         offset += SPIFLASH_SECTOR_SIZE;
         size -= SPIFLASH_SECTOR_SIZE;
     }
     return size;
 }
 
-static void spiflash_enter_sleep(flash_dev_t *dev)
-{
-    unsigned char cmd[4];
-    cmd[0] = CMD_DEEP_SLEEP;
-    spi_send(dev->user_data, cmd, 1);
-}
+static const struct flash_device_ops spiflash_ops = {
+    .open = spiflash_open,
+    .close = spiflash_close,
+    .write = spiflash_write,
+    .read = spiflash_read,
+    .erase = spiflash_erase
+};
 
-static void spiflash_exit_sleep(flash_dev_t *dev)
+void spiflash_device_init(flash_device_t *dev, spi_device_t *spi, unsigned int base_addr, unsigned int size)
 {
-    unsigned char cmd[4];
-    cmd[0] = CMD_WAKEUP;
-    spi_send(dev->user_data, cmd, 1);
-}
-
-int spiflash_init(flash_dev_t *dev, void *user_data, unsigned int base_addr, unsigned int size)
-{
-    unsigned char tmp[4];
-
     LOG_ASSERT(base_addr % SPIFLASH_SECTOR_SIZE == 0);
     LOG_ASSERT(size % SPIFLASH_SECTOR_SIZE == 0);
 
@@ -155,21 +170,8 @@ int spiflash_init(flash_dev_t *dev, void *user_data, unsigned int base_addr, uns
     dev->size = size;
     dev->sec_size = SPIFLASH_SECTOR_SIZE;
     dev->write_grain = 1;
-    dev->user_data = user_data;
-    dev->read = spiflash_read;
-    dev->write = spiflash_write;
-    dev->erase = spiflash_erase;
-    dev->enter_sleep = spiflash_enter_sleep;
-    dev->exit_sleep = spiflash_exit_sleep;
-
-    tmp[0] = CMD_READ_ID;
-    spi_transfer(dev->user_data, tmp, 4);
-
-    LOG_I("spiflash id:%x %x %x", tmp[1], tmp[2], tmp[3]);
-    if (tmp[1] == 0xff)
-        return -1;
-
-    return 0;
+    dev->ops = &spiflash_ops;
+    dev->user_data = spi;
 }
 
 #endif

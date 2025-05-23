@@ -130,213 +130,7 @@ static void spi_clk_enable(unsigned int spi)
 #endif
 }
 
-void spi_handle_init(spi_handle_t *spi_handle, unsigned int spi_id, unsigned int cs_pin)
-{
-    LOG_ASSERT(spi_id < SPI_INDEX_MAX);
-
-    spi_clk_enable(spi_id);
-    spi_handle->user_data = &spi_list[spi_id];
-    spi_handle->cs_pin = cs_pin;
-}
-
-void spi_open(spi_handle_t *spi_handle, unsigned int freq, unsigned int mode)
-{
-    struct stm32_spi *spi = spi_handle->user_data;
-    LL_SPI_InitTypeDef spi_init;
-    unsigned int dma_mdatasize;
-    unsigned int dma_pdatasize;
-    
-    if (LL_SPI_IsEnabled(spi->spi))
-        return;
-
-    if (mode & SPI_SLAVE)
-        spi_init.Mode = LL_SPI_MODE_SLAVE;
-    else
-        spi_init.Mode = LL_SPI_MODE_MASTER;
-
-    if (mode & SPI_LSB)
-        spi_init.BitOrder = LL_SPI_LSB_FIRST;
-    else 
-        spi_init.BitOrder = LL_SPI_MSB_FIRST;
-
-    if (mode & SPI_3WIRE)
-        spi_init.TransferDirection = LL_SPI_HALF_DUPLEX_TX;
-    else 
-        spi_init.TransferDirection = LL_SPI_FULL_DUPLEX;
-    
-    if (mode & SPI_DATA_16BIT)
-    {
-        dma_mdatasize = LL_DMA_MDATAALIGN_HALFWORD;
-        dma_pdatasize = LL_DMA_PDATAALIGN_HALFWORD;
-        spi_init.DataWidth = LL_SPI_DATAWIDTH_16BIT;
-    }
-    else 
-    {
-        dma_mdatasize = LL_DMA_MDATAALIGN_BYTE;
-        dma_pdatasize = LL_DMA_PDATAALIGN_BYTE;
-        spi_init.DataWidth = LL_SPI_DATAWIDTH_8BIT;
-    }
-    
-    if (mode & SPI_CPHA)
-        spi_init.ClockPhase = LL_SPI_PHASE_2EDGE;
-    else 
-        spi_init.ClockPhase = LL_SPI_PHASE_1EDGE;
-    
-    if (mode & SPI_CPOL)
-        spi_init.ClockPolarity = LL_SPI_POLARITY_HIGH;
-    else 
-        spi_init.ClockPolarity = LL_SPI_POLARITY_LOW;
-    
-    spi_init.NSS = LL_SPI_NSS_SOFT;
-
-    if (freq >= SystemCoreClock / 2)
-    {
-        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV2;
-    }
-    else if (freq >= SystemCoreClock / 4)
-    {
-        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV4;
-    }
-    else if (freq >= SystemCoreClock / 8)
-    {
-        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV8;
-    }
-    else if (freq >= SystemCoreClock / 16)
-    {
-        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV16;
-    }
-    else if (freq >= SystemCoreClock / 32)
-    {
-        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV32;
-    }
-    else if (freq >= SystemCoreClock / 64)
-    {
-        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV64;
-    }
-    else if (freq >= SystemCoreClock / 128)
-    {
-        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV128;
-    }
-    else
-    {
-        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV256;
-    }
-    spi_init.CRCCalculation = 0;
-    LL_SPI_Init(spi->spi, &spi_init);
-
-#if defined (BSP_SPI1_TX_USING_DMA) || defined (BSP_SPI1_RX_USING_DMA)
-    if (spi_handle->user_data == &spi_list[SPI1_INDEX])
-    {
-#if defined(BSP_SPI1_RX_USING_DMA)
-        // init rx dma
-        spi->rx_dma_ch = __SPI1_RX_DMA_CH;
-        LL_DMA_SetPeriphRequest(DMA1, __SPI1_RX_DMA_CH, __SPI1_RX_DMA_REQ);
-        // LL_DMA_SetDataTransferDirection(DMA1, __SPI1_RX_DMA_CH, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
-        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI1_RX_DMA_CH, LL_DMA_PRIORITY_LOW);
-        // LL_DMA_SetMode(DMA1, __SPI1_RX_DMA_CH, LL_DMA_MODE_NORMAL);
-        // LL_DMA_SetPeriphIncMode(DMA1, __SPI1_RX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
-        LL_DMA_SetMemoryIncMode(DMA1, __SPI1_RX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
-        LL_DMA_SetPeriphSize(DMA1, __SPI1_RX_DMA_CH, dma_pdatasize);
-        LL_DMA_SetMemorySize(DMA1, __SPI1_RX_DMA_CH, dma_mdatasize);
-        LL_DMA_EnableIT_TC(DMA1, __SPI1_RX_DMA_CH);
-#endif
-#if defined (BSP_SPI1_TX_USING_DMA)
-        // init tx dma
-        spi->tx_dma_ch = __SPI1_TX_DMA_CH;
-        LL_DMA_SetPeriphRequest(DMA1, __SPI1_TX_DMA_CH, __SPI1_TX_DMA_REQ);
-        LL_DMA_SetDataTransferDirection(DMA1, __SPI1_TX_DMA_CH, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
-        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI1_TX_DMA_CH, LL_DMA_PRIORITY_LOW);
-        // LL_DMA_SetMode(DMA1, __SPI1_TX_DMA_CH, LL_DMA_MODE_NORMAL);
-        // LL_DMA_SetPeriphIncMode(DMA1, __SPI1_TX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
-        LL_DMA_SetMemoryIncMode(DMA1, __SPI1_TX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
-        LL_DMA_SetPeriphSize(DMA1, __SPI1_TX_DMA_CH, dma_pdatasize);
-        LL_DMA_SetMemorySize(DMA1, __SPI1_TX_DMA_CH, dma_mdatasize);
-        LL_DMA_EnableIT_TC(DMA1, __SPI1_TX_DMA_CH);
-#endif
-        //使能DMA中断
-        NVIC_SetPriority(__SPI1_DMA_IRQn, 2);
-        NVIC_EnableIRQ(__SPI1_DMA_IRQn);
-    } else
-#endif /* defined (BSP_SPI1_TX_USING_DMA) || defined (BSP_SPI1_RX_USING_DMA) */
-
-#if defined(BSP_SPI2_RX_USING_DMA) || defined(BSP_SPI2_TX_USING_DMA)
-    if (spi_handle->user_data == &spi_list[SPI2_INDEX])
-    {
-#if defined(BSP_SPI2_RX_USING_DMA)
-        // init rx dma
-        spi->rx_dma_ch = __SPI2_RX_DMA_CH;
-        LL_DMA_SetPeriphRequest(DMA1, __SPI2_RX_DMA_CH, __SPI2_RX_DMA_REQ);
-        // LL_DMA_SetDataTransferDirection(DMA1, __SPI2_RX_DMA_CH, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
-        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI2_RX_DMA_CH, LL_DMA_PRIORITY_LOW);
-        // LL_DMA_SetMode(DMA1, __SPI2_RX_DMA_CH, LL_DMA_MODE_NORMAL);
-        // LL_DMA_SetPeriphIncMode(DMA1, __SPI2_RX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
-        LL_DMA_SetMemoryIncMode(DMA1, __SPI2_RX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
-        LL_DMA_SetPeriphSize(DMA1, __SPI2_RX_DMA_CH, dma_pdatasize);
-        LL_DMA_SetMemorySize(DMA1, __SPI2_RX_DMA_CH, dma_mdatasize);
-        LL_DMA_EnableIT_TC(DMA1, __SPI2_RX_DMA_CH);
-#endif
-#if defined (BSP_SPI2_TX_USING_DMA)
-        // init tx dma
-        spi->tx_dma_ch = __SPI2_TX_DMA_CH;
-        LL_DMA_SetPeriphRequest(DMA1, __SPI2_TX_DMA_CH, __SPI2_TX_DMA_REQ);
-        LL_DMA_SetDataTransferDirection(DMA1, __SPI2_TX_DMA_CH, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
-        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI2_TX_DMA_CH, LL_DMA_PRIORITY_LOW);
-        // LL_DMA_SetMode(DMA1, __SPI2_TX_DMA_CH, LL_DMA_MODE_NORMAL);
-        // LL_DMA_SetPeriphIncMode(DMA1, __SPI2_TX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
-        LL_DMA_SetMemoryIncMode(DMA1, __SPI2_TX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
-        LL_DMA_SetPeriphSize(DMA1, __SPI2_TX_DMA_CH, dma_pdatasize);
-        LL_DMA_SetMemorySize(DMA1, __SPI2_TX_DMA_CH, dma_mdatasize);
-        LL_DMA_EnableIT_TC(DMA1, __SPI2_TX_DMA_CH);
-#endif
-        //使能DMA中断
-        NVIC_SetPriority(__SPI2_DMA_IRQn, 2);
-        NVIC_EnableIRQ(__SPI2_DMA_IRQn);
-    } else
-#endif
-
-#if defined(BSP_SPI3_RX_USING_DMA) || defined(BSP_SPI3_TX_USING_DMA)
-    if (spi_handle->user_data == &spi_list[SPI3_INDEX])
-    {
-#if defined(BSP_SPI3_RX_USING_DMA)
-        // init rx dma
-        spi->rx_dma_ch = __SPI3_RX_DMA_CH;
-        LL_DMA_SetPeriphRequest(DMA1, __SPI3_RX_DMA_CH, __SPI3_RX_DMA_REQ);
-        // LL_DMA_SetDataTransferDirection(DMA1, __SPI3_RX_DMA_CH, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
-        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI3_RX_DMA_CH, LL_DMA_PRIORITY_LOW);
-        // LL_DMA_SetMode(DMA1, __SPI3_RX_DMA_CH, LL_DMA_MODE_NORMAL);
-        // LL_DMA_SetPeriphIncMode(DMA1, __SPI3_RX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
-        LL_DMA_SetMemoryIncMode(DMA1, __SPI3_RX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
-        LL_DMA_SetPeriphSize(DMA1, __SPI3_RX_DMA_CH, dma_pdatasize);
-        LL_DMA_SetMemorySize(DMA1, __SPI3_RX_DMA_CH, dma_mdatasize);
-        LL_DMA_EnableIT_TC(DMA1, __SPI3_RX_DMA_CH);
-#endif
-#if defined (BSP_SPI3_TX_USING_DMA)
-        // init tx dma
-        spi->tx_dma_ch = __SPI3_TX_DMA_CH;
-        LL_DMA_SetPeriphRequest(DMA1, __SPI3_TX_DMA_CH, __SPI3_TX_DMA_REQ);
-        LL_DMA_SetDataTransferDirection(DMA1, __SPI3_TX_DMA_CH, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
-        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI3_TX_DMA_CH, LL_DMA_PRIORITY_LOW);
-        // LL_DMA_SetMode(DMA1, __SPI3_TX_DMA_CH, LL_DMA_MODE_NORMAL);
-        // LL_DMA_SetPeriphIncMode(DMA1, __SPI3_TX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
-        LL_DMA_SetMemoryIncMode(DMA1, __SPI3_TX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
-        LL_DMA_SetPeriphSize(DMA1, __SPI3_TX_DMA_CH, dma_pdatasize);
-        LL_DMA_SetMemorySize(DMA1, __SPI3_TX_DMA_CH, dma_mdatasize);
-        LL_DMA_EnableIT_TC(DMA1, __SPI3_TX_DMA_CH);
-#endif
-        //使能DMA中断
-        NVIC_SetPriority(__SPI3_DMA_IRQn, 2);
-        NVIC_EnableIRQ(__SPI3_DMA_IRQn);
-    } else 
-#endif
-    {
-        (void)dma_pdatasize;
-        (void)dma_mdatasize;
-        // 不使用dma
-    }
-    LL_SPI_Enable(spi->spi);
-}
-
-static void _spi_transfer(struct stm32_spi *spi, void *data, unsigned int size)
+static void _spi_transfer(struct stm32_spi *spi, void *data, size_t size)
 {
 #if (defined(BSP_USING_SPI1) && defined(BSP_SPI1_TX_USING_DMA) && defined(BSP_SPI1_RX_USING_DMA)) \
  || (defined(BSP_USING_SPI2) && defined(BSP_SPI2_TX_USING_DMA) && defined(BSP_SPI2_RX_USING_DMA)) \
@@ -475,66 +269,250 @@ static void _spi_send(struct stm32_spi *spi, const void *data, unsigned int size
     LL_SPI_ClearFlag_OVR(spi->spi);
 }
 
-void spi_transfer(spi_handle_t *spi_handle, void *data, unsigned int size)
+static int stm32_spi_transfer(spi_device_t *dev, unsigned int flags, void *data, size_t size)
 {
-    struct stm32_spi *spi = spi_handle->user_data;
+    struct stm32_spi *spi = dev->bus->user_data;
 
     while (spi->lock)
         mc_delay(0);
     spi->lock = 1;
 
-    pin_write(spi_handle->cs_pin, 0);
+    if (flags & SPI_FLAG_CS_TAKE)
+        pin_write(dev->cs_pin, 0);
+
     _spi_transfer(spi, data, size);
-    pin_write(spi_handle->cs_pin, 1);
+
+    if (flags & SPI_FLAG_CS_RELEASE)
+        pin_write(dev->cs_pin, 1);
 
     spi->lock = 0;
+    return 0;
 }
 
-void spi_send(spi_handle_t *spi_handle, const void *data, unsigned int size)
+static int stm32_spi_send(spi_device_t *dev, unsigned int flags, const void *data, size_t size)
 {
-    struct stm32_spi *spi = spi_handle->user_data;
+    struct stm32_spi *spi = dev->bus->user_data;
 
     while (spi->lock)
         mc_delay(0);
     spi->lock = 1;
+    
+    if (flags & SPI_FLAG_CS_TAKE)
+        pin_write(dev->cs_pin, 0);
 
-    pin_write(spi_handle->cs_pin, 0);
     _spi_send(spi, data, size);
-    pin_write(spi_handle->cs_pin, 1);
+
+    if (flags & SPI_FLAG_CS_RELEASE)
+        pin_write(dev->cs_pin, 1);
 
     spi->lock = 0;
+    return 0;
 }
 
-void spi_send_then_send(spi_handle_t *spi_handle, const void *send_data1, unsigned int send_size1, const void *send_data2, unsigned int send_size2)
+static const struct spi_bus_ops stm32_spi_ops = {
+    .send = stm32_spi_send,
+    .transfer = stm32_spi_transfer,
+};
+
+void spi_bus_init(spi_bus_t *bus, unsigned int spi_id, unsigned int freq, unsigned int mode)
 {
-    struct stm32_spi *spi = spi_handle->user_data;
+    struct stm32_spi *spi;
+    LL_SPI_InitTypeDef spi_init;
+    unsigned int dma_mdatasize;
+    unsigned int dma_pdatasize;
 
-    while (spi->lock)
-        mc_delay(0);
-    spi->lock = 1;
+    LOG_ASSERT(spi_id < SPI_INDEX_MAX);
 
-    pin_write(spi_handle->cs_pin, 0);
-    _spi_send(spi, send_data1, send_size1);
-    _spi_send(spi, send_data2, send_size2);
-    pin_write(spi_handle->cs_pin, 1);
+    spi_clk_enable(spi_id);
+    spi = &spi_list[spi_id];
+    bus->ops = &stm32_spi_ops;
+    bus->user_data = spi;
 
-    spi->lock = 0;
-}
+    if (mode & SPI_SLAVE)
+        spi_init.Mode = LL_SPI_MODE_SLAVE;
+    else
+        spi_init.Mode = LL_SPI_MODE_MASTER;
 
-void spi_send_then_recv(spi_handle_t *spi_handle, const void *send_data, unsigned int send_size, void *recv_data, unsigned int recv_size)
-{
-    struct stm32_spi *spi = spi_handle->user_data;
+    if (mode & SPI_LSB)
+        spi_init.BitOrder = LL_SPI_LSB_FIRST;
+    else 
+        spi_init.BitOrder = LL_SPI_MSB_FIRST;
 
-    while (spi->lock)
-        mc_delay(0);
-    spi->lock = 1;
+    if (mode & SPI_3WIRE)
+        spi_init.TransferDirection = LL_SPI_HALF_DUPLEX_TX;
+    else 
+        spi_init.TransferDirection = LL_SPI_FULL_DUPLEX;
+    
+    if (mode & SPI_DATA_16BIT)
+    {
+        dma_mdatasize = LL_DMA_MDATAALIGN_HALFWORD;
+        dma_pdatasize = LL_DMA_PDATAALIGN_HALFWORD;
+        spi_init.DataWidth = LL_SPI_DATAWIDTH_16BIT;
+    }
+    else 
+    {
+        dma_mdatasize = LL_DMA_MDATAALIGN_BYTE;
+        dma_pdatasize = LL_DMA_PDATAALIGN_BYTE;
+        spi_init.DataWidth = LL_SPI_DATAWIDTH_8BIT;
+    }
+    
+    if (mode & SPI_CPHA)
+        spi_init.ClockPhase = LL_SPI_PHASE_2EDGE;
+    else 
+        spi_init.ClockPhase = LL_SPI_PHASE_1EDGE;
+    
+    if (mode & SPI_CPOL)
+        spi_init.ClockPolarity = LL_SPI_POLARITY_HIGH;
+    else 
+        spi_init.ClockPolarity = LL_SPI_POLARITY_LOW;
+    
+    spi_init.NSS = LL_SPI_NSS_SOFT;
 
-    pin_write(spi_handle->cs_pin, 0);
-    _spi_send(spi, send_data, send_size);
-    _spi_transfer(spi, recv_data, recv_size);
-    pin_write(spi_handle->cs_pin, 1);
+    if (freq >= SystemCoreClock / 2)
+    {
+        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV2;
+    }
+    else if (freq >= SystemCoreClock / 4)
+    {
+        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV4;
+    }
+    else if (freq >= SystemCoreClock / 8)
+    {
+        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV8;
+    }
+    else if (freq >= SystemCoreClock / 16)
+    {
+        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV16;
+    }
+    else if (freq >= SystemCoreClock / 32)
+    {
+        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV32;
+    }
+    else if (freq >= SystemCoreClock / 64)
+    {
+        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV64;
+    }
+    else if (freq >= SystemCoreClock / 128)
+    {
+        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV128;
+    }
+    else
+    {
+        spi_init.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV256;
+    }
+    spi_init.CRCCalculation = 0;
+    LL_SPI_Init(spi->spi, &spi_init);
 
-    spi->lock = 0;
+#if defined (BSP_SPI1_TX_USING_DMA) || defined (BSP_SPI1_RX_USING_DMA)
+    if (spi_id == SPI1_INDEX)
+    {
+#if defined(BSP_SPI1_RX_USING_DMA)
+        // init rx dma
+        spi->rx_dma_ch = __SPI1_RX_DMA_CH;
+        LL_DMA_SetPeriphRequest(DMA1, __SPI1_RX_DMA_CH, __SPI1_RX_DMA_REQ);
+        // LL_DMA_SetDataTransferDirection(DMA1, __SPI1_RX_DMA_CH, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
+        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI1_RX_DMA_CH, LL_DMA_PRIORITY_LOW);
+        // LL_DMA_SetMode(DMA1, __SPI1_RX_DMA_CH, LL_DMA_MODE_NORMAL);
+        // LL_DMA_SetPeriphIncMode(DMA1, __SPI1_RX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
+        LL_DMA_SetMemoryIncMode(DMA1, __SPI1_RX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
+        LL_DMA_SetPeriphSize(DMA1, __SPI1_RX_DMA_CH, dma_pdatasize);
+        LL_DMA_SetMemorySize(DMA1, __SPI1_RX_DMA_CH, dma_mdatasize);
+        LL_DMA_EnableIT_TC(DMA1, __SPI1_RX_DMA_CH);
+#endif
+#if defined (BSP_SPI1_TX_USING_DMA)
+        // init tx dma
+        spi->tx_dma_ch = __SPI1_TX_DMA_CH;
+        LL_DMA_SetPeriphRequest(DMA1, __SPI1_TX_DMA_CH, __SPI1_TX_DMA_REQ);
+        LL_DMA_SetDataTransferDirection(DMA1, __SPI1_TX_DMA_CH, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
+        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI1_TX_DMA_CH, LL_DMA_PRIORITY_LOW);
+        // LL_DMA_SetMode(DMA1, __SPI1_TX_DMA_CH, LL_DMA_MODE_NORMAL);
+        // LL_DMA_SetPeriphIncMode(DMA1, __SPI1_TX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
+        LL_DMA_SetMemoryIncMode(DMA1, __SPI1_TX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
+        LL_DMA_SetPeriphSize(DMA1, __SPI1_TX_DMA_CH, dma_pdatasize);
+        LL_DMA_SetMemorySize(DMA1, __SPI1_TX_DMA_CH, dma_mdatasize);
+        LL_DMA_EnableIT_TC(DMA1, __SPI1_TX_DMA_CH);
+#endif
+        //使能DMA中断
+        NVIC_SetPriority(__SPI1_DMA_IRQn, 2);
+        NVIC_EnableIRQ(__SPI1_DMA_IRQn);
+    } else
+#endif /* defined (BSP_SPI1_TX_USING_DMA) || defined (BSP_SPI1_RX_USING_DMA) */
+
+#if defined(BSP_SPI2_RX_USING_DMA) || defined(BSP_SPI2_TX_USING_DMA)
+    if (spi_id == SPI2_INDEX)
+    {
+#if defined(BSP_SPI2_RX_USING_DMA)
+        // init rx dma
+        spi->rx_dma_ch = __SPI2_RX_DMA_CH;
+        LL_DMA_SetPeriphRequest(DMA1, __SPI2_RX_DMA_CH, __SPI2_RX_DMA_REQ);
+        // LL_DMA_SetDataTransferDirection(DMA1, __SPI2_RX_DMA_CH, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
+        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI2_RX_DMA_CH, LL_DMA_PRIORITY_LOW);
+        // LL_DMA_SetMode(DMA1, __SPI2_RX_DMA_CH, LL_DMA_MODE_NORMAL);
+        // LL_DMA_SetPeriphIncMode(DMA1, __SPI2_RX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
+        LL_DMA_SetMemoryIncMode(DMA1, __SPI2_RX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
+        LL_DMA_SetPeriphSize(DMA1, __SPI2_RX_DMA_CH, dma_pdatasize);
+        LL_DMA_SetMemorySize(DMA1, __SPI2_RX_DMA_CH, dma_mdatasize);
+        LL_DMA_EnableIT_TC(DMA1, __SPI2_RX_DMA_CH);
+#endif
+#if defined (BSP_SPI2_TX_USING_DMA)
+        // init tx dma
+        spi->tx_dma_ch = __SPI2_TX_DMA_CH;
+        LL_DMA_SetPeriphRequest(DMA1, __SPI2_TX_DMA_CH, __SPI2_TX_DMA_REQ);
+        LL_DMA_SetDataTransferDirection(DMA1, __SPI2_TX_DMA_CH, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
+        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI2_TX_DMA_CH, LL_DMA_PRIORITY_LOW);
+        // LL_DMA_SetMode(DMA1, __SPI2_TX_DMA_CH, LL_DMA_MODE_NORMAL);
+        // LL_DMA_SetPeriphIncMode(DMA1, __SPI2_TX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
+        LL_DMA_SetMemoryIncMode(DMA1, __SPI2_TX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
+        LL_DMA_SetPeriphSize(DMA1, __SPI2_TX_DMA_CH, dma_pdatasize);
+        LL_DMA_SetMemorySize(DMA1, __SPI2_TX_DMA_CH, dma_mdatasize);
+        LL_DMA_EnableIT_TC(DMA1, __SPI2_TX_DMA_CH);
+#endif
+        //使能DMA中断
+        NVIC_SetPriority(__SPI2_DMA_IRQn, 2);
+        NVIC_EnableIRQ(__SPI2_DMA_IRQn);
+    } else
+#endif
+
+#if defined(BSP_SPI3_RX_USING_DMA) || defined(BSP_SPI3_TX_USING_DMA)
+    if (spi_id == SPI3_INDEX)
+    {
+#if defined(BSP_SPI3_RX_USING_DMA)
+        // init rx dma
+        spi->rx_dma_ch = __SPI3_RX_DMA_CH;
+        LL_DMA_SetPeriphRequest(DMA1, __SPI3_RX_DMA_CH, __SPI3_RX_DMA_REQ);
+        // LL_DMA_SetDataTransferDirection(DMA1, __SPI3_RX_DMA_CH, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
+        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI3_RX_DMA_CH, LL_DMA_PRIORITY_LOW);
+        // LL_DMA_SetMode(DMA1, __SPI3_RX_DMA_CH, LL_DMA_MODE_NORMAL);
+        // LL_DMA_SetPeriphIncMode(DMA1, __SPI3_RX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
+        LL_DMA_SetMemoryIncMode(DMA1, __SPI3_RX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
+        LL_DMA_SetPeriphSize(DMA1, __SPI3_RX_DMA_CH, dma_pdatasize);
+        LL_DMA_SetMemorySize(DMA1, __SPI3_RX_DMA_CH, dma_mdatasize);
+        LL_DMA_EnableIT_TC(DMA1, __SPI3_RX_DMA_CH);
+#endif
+#if defined (BSP_SPI3_TX_USING_DMA)
+        // init tx dma
+        spi->tx_dma_ch = __SPI3_TX_DMA_CH;
+        LL_DMA_SetPeriphRequest(DMA1, __SPI3_TX_DMA_CH, __SPI3_TX_DMA_REQ);
+        LL_DMA_SetDataTransferDirection(DMA1, __SPI3_TX_DMA_CH, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
+        // LL_DMA_SetChannelPriorityLevel(DMA1, __SPI3_TX_DMA_CH, LL_DMA_PRIORITY_LOW);
+        // LL_DMA_SetMode(DMA1, __SPI3_TX_DMA_CH, LL_DMA_MODE_NORMAL);
+        // LL_DMA_SetPeriphIncMode(DMA1, __SPI3_TX_DMA_CH, LL_DMA_PERIPH_NOINCREMENT);
+        LL_DMA_SetMemoryIncMode(DMA1, __SPI3_TX_DMA_CH, LL_DMA_MEMORY_INCREMENT);
+        LL_DMA_SetPeriphSize(DMA1, __SPI3_TX_DMA_CH, dma_pdatasize);
+        LL_DMA_SetMemorySize(DMA1, __SPI3_TX_DMA_CH, dma_mdatasize);
+        LL_DMA_EnableIT_TC(DMA1, __SPI3_TX_DMA_CH);
+#endif
+        //使能DMA中断
+        NVIC_SetPriority(__SPI3_DMA_IRQn, 2);
+        NVIC_EnableIRQ(__SPI3_DMA_IRQn);
+    } else 
+#endif
+    {
+        (void)dma_pdatasize;
+        (void)dma_mdatasize;
+        // 不使用dma
+    }
+    LL_SPI_Enable(spi->spi);
 }
 
 #if defined(BSP_USING_SPI1) && (defined(BSP_SPI1_TX_USING_DMA) || defined(BSP_SPI1_RX_USING_DMA)) 

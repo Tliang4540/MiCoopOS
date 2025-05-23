@@ -13,7 +13,7 @@
 
 #if LOG_LEVEL
 
-static serial_handle_t m_serial;
+static device_t *log_dev;
 static unsigned int log_lock = 0;
 static char log_buf[128];    //防止任务栈溢出, 使用静态变量
 
@@ -93,7 +93,7 @@ void log_printf(const char *format, ...)
     }
 
     va_end(args);
-    serial_write(&m_serial, log_buf, written);
+    device_write(log_dev, log_buf, written);
     log_lock = 0;
 }
 
@@ -125,7 +125,7 @@ void log_dump(const void *data, unsigned size)
         //     size = 0;
         // }
     }
-    serial_write(&m_serial, log_buf, buf_index);
+    device_write(log_dev, log_buf, buf_index);
     log_lock = 0;
 }
 
@@ -137,10 +137,10 @@ void log_assert(const char *ex_str, const char *func, unsigned int line)
 }
 #endif
 
-void log_init(unsigned serial_id, unsigned baud)
+void log_init(void *dev)
 {
-    serial_handle_init(&m_serial, serial_id);
-    serial_open(&m_serial, baud);
+    log_dev = dev;
+    device_open(dev);
 }
 
 #endif

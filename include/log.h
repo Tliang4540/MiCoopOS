@@ -25,14 +25,14 @@
 #endif
 
 #if LOG_LEVEL
-void log_init(unsigned serial_id, unsigned baud);
+void log_init(void *dev);
 void log_printf(const char *format, ...);
 void log_dump(const void *data, unsigned size);
 void log_assert(const char *ex_str, const char *func, unsigned int line);
 #define LOG_E(format, ...)    log_printf(LOG_COLOR_RED"[E]:"format""LOG_COLOR_NONE"\n", ##__VA_ARGS__)
 #else
 #define LOG_E(...)
-#define log_init(a, b)
+#define log_init(a)
 #endif
 
 #if LOG_LEVEL > 1
