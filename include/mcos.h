@@ -8,6 +8,10 @@
 
 #include "mctypes.h"
 
+#define MC_TICK_MAX         ((mc_tick_t)((mc_tick_t)-1 / 2))
+#define MC_MSG_INVALID_VAL  ((mc_ubase_t)-1)
+#define MC_STACK_FILL_VAL   (0xA5)
+
 struct mc_msg
 {
     void *task;
