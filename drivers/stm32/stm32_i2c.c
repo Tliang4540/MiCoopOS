@@ -43,8 +43,8 @@ struct stm32_i2c
     I2C_TypeDef *i2c;
     mc_msg_t transfer_msg;
     unsigned char *buf;
-    unsigned short lock;
-    unsigned short irq;
+    unsigned int interrupt_flag;
+    unsigned int lock;
 };
 
 enum
@@ -64,13 +64,13 @@ enum
 static struct stm32_i2c i2c_list[] = 
 {
 #if defined(I2C1) && defined(BSP_USING_I2C1)
-    {I2C1, {NULL, MC_MSG_INVALID_VAL}, 0, 0, __I2C1_IRQn},
+    {I2C1, {NULL, MC_MSG_INVALID_VAL}, 0, 0, 0},
 #endif
 #if defined(I2C2) && defined(BSP_USING_I2C2)
-    {I2C2, {NULL, MC_MSG_INVALID_VAL}, 0, 0, __I2C2_IRQn},
+    {I2C2, {NULL, MC_MSG_INVALID_VAL}, 0, 0, 0},
 #endif
 #if defined(I2C3) && defined(BSP_USING_I2C3)
-    {I2C3, {NULL, MC_MSG_INVALID_VAL}, 0, 0, __I2C3_IRQn},
+    {I2C3, {NULL, MC_MSG_INVALID_VAL}, 0, 0, 0},
 #endif
 };
 
@@ -81,16 +81,22 @@ static void i2c_clk_enable(unsigned int i2c)
 #if defined(I2C1) && defined(BSP_USING_I2C1)
     case I2C1_INDEX:
         __I2C1_CLK_ENABLE();
+        NVIC_SetPriority(__I2C1_IRQn, 3);
+        NVIC_EnableIRQ(__I2C1_IRQn);
         break;
 #endif
 #if defined(I2C2) && defined(BSP_USING_I2C2)
     case I2C2_INDEX:
         __I2C2_CLK_ENABLE();
+        NVIC_SetPriority(__I2C2_IRQn, 3);
+        NVIC_EnableIRQ(__I2C2_IRQn);
         break;
 #endif
 #if defined(I2C3) && defined(BSP_USING_I2C3)
     case I2C3_INDEX:
         __I2C3_CLK_ENABLE();
+        NVIC_SetPriority(__I2C3_IRQn, 3);
+        NVIC_EnableIRQ(__I2C3_IRQn);
         break;
 #endif
     default:
@@ -103,7 +109,6 @@ static int stm32_i2c_transfer(struct i2c_device *dev, unsigned int flags, void *
     struct stm32_i2c *i2c = dev->bus->user_data;
     unsigned int end_flag;
     unsigned int start_flag;
-    unsigned int interrupt_flag;
     mc_ubase_t irq_msg;
     int ret = 0;
 
@@ -111,48 +116,57 @@ static int stm32_i2c_transfer(struct i2c_device *dev, unsigned int flags, void *
         mc_delay(0);
     i2c->lock = 1;
 
-    if (flags & I2C_FLAG_NO_STOP)
-        end_flag = LL_I2C_MODE_SOFTEND;
-    else
+    if ((flags & I2C_FLAG_NO_STOP) == 0)
         end_flag = LL_I2C_MODE_AUTOEND;
+    else if (flags & I2C_FLAG_NEXT_RD)
+        end_flag = LL_I2C_MODE_SOFTEND;     //发送完NByte后必须是Stop或Start
+    else
+        end_flag = LL_I2C_MODE_RELOAD;      //发送数据不能有restart
 
+    i2c->buf = data;
     if (flags & I2C_FLAG_NO_START)
     {
         start_flag = LL_I2C_GENERATE_NOSTARTSTOP;
-        interrupt_flag = 0;
     }
     else if (flags & I2C_FLAG_RD)
     {
         start_flag = LL_I2C_GENERATE_START_READ;
-        interrupt_flag = I2C_CR1_RXIE;
+        i2c->interrupt_flag = I2C_CR1_RXIE;
     }
     else 
     {
         start_flag = LL_I2C_GENERATE_START_WRITE;
-        interrupt_flag = I2C_CR1_TXIE;
+        i2c->interrupt_flag = I2C_CR1_TXIE;
+        i2c->i2c->TXDR = *i2c->buf++;
     }
 
-    i2c->buf = data;
     LL_I2C_HandleTransfer(i2c->i2c, dev->addr, LL_I2C_ADDRESSING_MODE_7BIT, size, end_flag, start_flag);
-    i2c->i2c->CR1 |= I2C_CR1_TCIE | I2C_CR1_STOPIE | interrupt_flag;
+    i2c->i2c->CR1 |= I2C_CR1_ERRIE | I2C_CR1_TCIE | I2C_CR1_STOPIE | i2c->interrupt_flag;
     if (MC_FALSE == mc_msg_recv(&i2c->transfer_msg, &irq_msg, 1000))
     {
-        LOG_E("i2c timeout:%d", i2c->i2c->ISR);
-        ret = MC_ERROR;
+        LOG_E("i2c timeout:%x", i2c->i2c->ISR);
+        i2c->i2c->ICR = I2C_ICR_ARLOCF | I2C_ICR_BERRCF | I2C_ICR_STOPCF | I2C_ICR_NACKCF;
+        i2c->i2c->CR1 &= ~(I2C_CR1_ERRIE | I2C_CR1_TXIE | I2C_CR1_TCIE | I2C_CR1_RXIE | I2C_CR1_STOPIE);
     }
     else if (irq_msg)
     {
         LOG_E("i2c rs:%x", irq_msg);
-        if (i2c->i2c->ISR & I2C_ISR_BUSY)
-        {
-            i2c->i2c->CR1 = 0;
-            LOG_E("i2c rb reset");
-            mc_delay(1);
-            i2c->i2c->CR1 = 1;
-        }
-        ret = MC_ERROR;
+    }
+    else
+    {
+        goto stm32_i2c_exit;
     }
 
+    if (i2c->i2c->ISR & I2C_ISR_BUSY)
+    {
+        i2c->i2c->CR1 = 0;
+        LOG_E("i2c rb reset");
+        mc_delay(1);
+        i2c->i2c->CR1 = 1;
+    }
+    ret = MC_ERROR;
+
+stm32_i2c_exit:
     i2c->lock = 0;
     return ret;
 }
@@ -172,8 +186,6 @@ void i2c_bus_init(i2c_bus_t *bus, unsigned int i2c_id, unsigned int freq)
 
     LL_I2C_SetTiming(i2c_list[i2c_id].i2c, freq);
     LL_I2C_Enable(i2c_list[i2c_id].i2c);
-    NVIC_SetPriority(i2c_list[i2c_id].irq, 3);
-    NVIC_EnableIRQ(i2c_list[i2c_id].irq);
 }
 
 static void i2c_irq(struct stm32_i2c *i2c)
@@ -189,9 +201,9 @@ static void i2c_irq(struct stm32_i2c *i2c)
         i2c->i2c->TXDR = *i2c->buf++;
     }
 
-    if (flags & I2C_ISR_TC || flags & I2C_ISR_STOPF)
+    if (flags & (I2C_ISR_TC | I2C_ISR_TCR | I2C_ISR_STOPF | I2C_ISR_ARLO | I2C_ISR_NACKF | I2C_ISR_BERR))
     {
-        if(flags & I2C_ISR_NACKF)
+        if(flags & (I2C_ISR_ARLO | I2C_ISR_NACKF | I2C_ISR_BERR))
         {
             mc_msg_send(&i2c->transfer_msg, i2c->i2c->ISR);
         }
@@ -200,7 +212,7 @@ static void i2c_irq(struct stm32_i2c *i2c)
             mc_msg_send(&i2c->transfer_msg, 0);
         }
         i2c->i2c->ICR = I2C_ICR_ARLOCF | I2C_ICR_BERRCF | I2C_ICR_STOPCF | I2C_ICR_NACKCF;
-        i2c->i2c->CR1 &= ~(I2C_CR1_TXIE | I2C_CR1_TCIE | I2C_CR1_RXIE | I2C_CR1_STOPIE);
+        i2c->i2c->CR1 &= ~(I2C_CR1_ERRIE | I2C_CR1_TXIE | I2C_CR1_TCIE | I2C_CR1_RXIE | I2C_CR1_STOPIE);
     }
 }
 

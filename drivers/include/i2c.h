@@ -12,6 +12,7 @@
 #define I2C_FLAG_RD          1
 #define I2C_FLAG_NO_START    2
 #define I2C_FLAG_NO_STOP     4
+#define I2C_FLAG_NEXT_RD     8
 
 struct i2c_bus;
 typedef struct i2c_device
@@ -48,7 +49,7 @@ static inline int i2c_master_write_reg8(i2c_device_t *dev, uint8_t reg, void *da
 
 static inline int i2c_master_read_reg8(i2c_device_t *dev, uint8_t reg, void *data, size_t size)
 {
-    int ret1 = dev->bus->transfer(dev, I2C_FLAG_WR | I2C_FLAG_NO_STOP, &reg, 1);
+    int ret1 = dev->bus->transfer(dev, I2C_FLAG_WR | I2C_FLAG_NO_STOP | I2C_FLAG_NEXT_RD, &reg, 1);
     int ret2 = dev->bus->transfer(dev, I2C_FLAG_RD, data, size);
     return ret1 | ret2;
 }
@@ -64,7 +65,7 @@ static inline int i2c_master_write_reg16(i2c_device_t *dev, uint16_t reg, void *
 static inline int i2c_master_read_reg16(i2c_device_t *dev, uint8_t reg, void *data, size_t size)
 {
     uint8_t reg_addr[2] = {reg >> 8, reg};
-    int ret1 = dev->bus->transfer(dev, I2C_FLAG_WR | I2C_FLAG_NO_STOP, reg_addr, 2);
+    int ret1 = dev->bus->transfer(dev, I2C_FLAG_WR | I2C_FLAG_NO_STOP | I2C_FLAG_NEXT_RD, reg_addr, 2);
     int ret2 = dev->bus->transfer(dev, I2C_FLAG_RD, data, size);
     return ret1 | ret2;
 }
