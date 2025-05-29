@@ -35,7 +35,7 @@ static int spiflash_wait_busy(flash_device_t *dev)
     while(overtime--)
     {
         buf[0] = CMD_READ_STATUS;
-        spi_transfer(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, buf, 2);
+        spi_recv(dev->user_data, buf, 2);
         if((buf[1] & 0x01) == 0)
             return 0;
         mc_delay(1);
@@ -49,10 +49,10 @@ static int spiflash_open(flash_device_t *dev)
     unsigned char cmd[4];
 
     cmd[0] = CMD_WAKEUP;
-    spi_send(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 1);
+    spi_send(dev->user_data, cmd, 1);
 
     cmd[0] = CMD_READ_ID;
-    spi_transfer(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 4);
+    spi_recv(dev->user_data,  cmd, 4);
 
     LOG_I("spiflash id:%x %x %x", cmd[1], cmd[2], cmd[3]);
     if (cmd[1] == 0xff)
@@ -64,7 +64,7 @@ static int spiflash_close(flash_device_t *dev)
 {
     unsigned char cmd[4];
     cmd[0] = CMD_DEEP_SLEEP;
-    spi_send(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 1);
+    spi_send(dev->user_data, cmd, 1);
     return 0;
 }
 
@@ -102,7 +102,7 @@ static int spiflash_write(flash_device_t *dev, unsigned int offset, const void *
             return -1;
 
         cmd[0] = CMD_WRITE_ENABLE;
-        spi_send(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 1);
+        spi_send(dev->user_data, cmd, 1);
 
         cmd[0] = CMD_PAGE_WRITE;
         cmd[1] = (unsigned char)(offset >> 16);
@@ -140,13 +140,13 @@ static int spiflash_erase(flash_device_t *dev, unsigned int offset, size_t size)
             return -1;
 
         cmd[0] = CMD_WRITE_ENABLE;
-        spi_send(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 1);
+        spi_send(dev->user_data, cmd, 1);
 
         cmd[0] = CMD_ERASE_4K;
         cmd[1] = (unsigned char)(offset >> 16);
         cmd[2] = (unsigned char)(offset >> 8);
         cmd[3] = (unsigned char)(offset);
-        spi_send(dev->user_data, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, cmd, 4);
+        spi_send(dev->user_data, cmd, 4);
         offset += SPIFLASH_SECTOR_SIZE;
         size -= SPIFLASH_SECTOR_SIZE;
     }

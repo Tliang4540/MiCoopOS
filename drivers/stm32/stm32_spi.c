@@ -130,7 +130,7 @@ static void spi_clk_enable(unsigned int spi)
 #endif
 }
 
-static void _spi_transfer(struct stm32_spi *spi, void *data, size_t size)
+static void _spi_transfer(struct stm32_spi *spi, const void *send_buf, void *recv_buf, size_t size)
 {
 #if (defined(BSP_USING_SPI1) && defined(BSP_SPI1_TX_USING_DMA) && defined(BSP_SPI1_RX_USING_DMA)) \
  || (defined(BSP_USING_SPI2) && defined(BSP_SPI2_TX_USING_DMA) && defined(BSP_SPI2_RX_USING_DMA)) \
@@ -138,9 +138,9 @@ static void _spi_transfer(struct stm32_spi *spi, void *data, size_t size)
     if ((spi->tx_dma_ch >= 0) && (spi->rx_dma_ch >= 0))
     {
         // 设置传输地址和数据大小
-        LL_DMA_ConfigAddresses(DMA1, spi->rx_dma_ch, (uint32_t)&spi->spi->DR, (uint32_t)data, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
+        LL_DMA_ConfigAddresses(DMA1, spi->rx_dma_ch, (uint32_t)&spi->spi->DR, (uint32_t)recv_buf, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
         LL_DMA_SetDataLength(DMA1, spi->rx_dma_ch, size);
-        LL_DMA_ConfigAddresses(DMA1, spi->tx_dma_ch, (uint32_t)data, (uint32_t)&spi->spi->DR, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
+        LL_DMA_ConfigAddresses(DMA1, spi->tx_dma_ch, (uint32_t)send_buf, (uint32_t)&spi->spi->DR, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
         LL_DMA_SetDataLength(DMA1, spi->tx_dma_ch, size);
         //使能DMA，使能DMA传输
         LL_DMA_EnableChannel(DMA1, spi->rx_dma_ch);
@@ -163,8 +163,8 @@ static void _spi_transfer(struct stm32_spi *spi, void *data, size_t size)
         unsigned int sync = 0;
         if (LL_SPI_GetDataWidth(spi->spi) == LL_SPI_DATAWIDTH_16BIT)
         {
-            uint16_t *txbuf = data;
-            uint16_t *rxbuf = data;
+            const uint16_t *txbuf = send_buf;
+            uint16_t *rxbuf = recv_buf;
             while(size)
             {
                 if ((spi->spi->SR & SPI_SR_TXE) && (sync == 0))
@@ -185,8 +185,8 @@ static void _spi_transfer(struct stm32_spi *spi, void *data, size_t size)
         }
         else
         {
-            uint8_t *txbuf = data;
-            uint8_t *rxbuf = data;
+            const uint8_t *txbuf = send_buf;
+            uint8_t *rxbuf = recv_buf;
             while(size)
             {
                 if ((spi->spi->SR & SPI_SR_TXE) && (sync == 0))
@@ -269,7 +269,7 @@ static void _spi_send(struct stm32_spi *spi, const void *data, unsigned int size
     LL_SPI_ClearFlag_OVR(spi->spi);
 }
 
-static int stm32_spi_transfer(spi_device_t *dev, unsigned int flags, void *data, size_t size)
+static int stm32_spi_transfer(spi_device_t *dev, unsigned int flags, const void *send_buf, void *recv_buf, size_t size)
 {
     struct stm32_spi *spi = dev->bus->user_data;
 
@@ -280,7 +280,12 @@ static int stm32_spi_transfer(spi_device_t *dev, unsigned int flags, void *data,
     if (flags & SPI_FLAG_CS_TAKE)
         pin_write(dev->cs_pin, 0);
 
-    _spi_transfer(spi, data, size);
+    if (recv_buf == 0)
+        _spi_send(spi, send_buf, size);
+    else if (send_buf == 0)
+        _spi_transfer(spi, recv_buf, recv_buf, size);
+    else
+        _spi_transfer(spi, send_buf, recv_buf, size);
 
     if (flags & SPI_FLAG_CS_RELEASE)
         pin_write(dev->cs_pin, 1);
@@ -288,31 +293,6 @@ static int stm32_spi_transfer(spi_device_t *dev, unsigned int flags, void *data,
     spi->lock = 0;
     return 0;
 }
-
-static int stm32_spi_send(spi_device_t *dev, unsigned int flags, const void *data, size_t size)
-{
-    struct stm32_spi *spi = dev->bus->user_data;
-
-    while (spi->lock)
-        mc_delay(0);
-    spi->lock = 1;
-    
-    if (flags & SPI_FLAG_CS_TAKE)
-        pin_write(dev->cs_pin, 0);
-
-    _spi_send(spi, data, size);
-
-    if (flags & SPI_FLAG_CS_RELEASE)
-        pin_write(dev->cs_pin, 1);
-
-    spi->lock = 0;
-    return 0;
-}
-
-static const struct spi_bus_ops stm32_spi_ops = {
-    .send = stm32_spi_send,
-    .transfer = stm32_spi_transfer,
-};
 
 void spi_bus_init(spi_bus_t *bus, unsigned int spi_id, unsigned int freq, unsigned int mode)
 {
@@ -325,7 +305,7 @@ void spi_bus_init(spi_bus_t *bus, unsigned int spi_id, unsigned int freq, unsign
 
     spi_clk_enable(spi_id);
     spi = &spi_list[spi_id];
-    bus->ops = &stm32_spi_ops;
+    bus->transfer = stm32_spi_transfer;
     bus->user_data = spi;
 
     if (mode & SPI_SLAVE)

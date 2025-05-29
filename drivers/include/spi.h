@@ -38,15 +38,9 @@ typedef struct spi_device
     unsigned int cs_pin;
 }spi_device_t;
 
-struct spi_bus_ops
-{
-    int (*send)(struct spi_device *dev, unsigned int flags, const void *data, size_t size);
-    int (*transfer)(struct spi_device *dev, unsigned int flags, void *data, size_t size);
-};
-
 typedef struct spi_bus
 {
-    const struct spi_bus_ops *ops;
+    int (*transfer)(struct spi_device *dev, unsigned int flags, const void *send_buf, void *recv_buf, size_t size);
     void *user_data;
 }spi_bus_t;
 
@@ -58,27 +52,32 @@ static inline void spi_device_init(spi_device_t *dev, spi_bus_t *bus, unsigned i
     dev->cs_pin = cs_pin;
 }
 
-static inline int spi_send(spi_device_t *dev, unsigned int flags, const void *data, size_t size)
+static inline int spi_transfer(spi_device_t *dev, unsigned int flags, const void *send_buf, void *recv_buf, size_t size)
 {
-    return dev->bus->ops->send(dev, flags, data, size);
+    return dev->bus->transfer(dev, flags, send_buf, recv_buf, size);
 }
 
-static inline int spi_transfer(spi_device_t *dev, unsigned int flags, void *data, size_t size)
+static inline int spi_send(spi_device_t *dev, const void *data, size_t size)
 {
-    return dev->bus->ops->transfer(dev, flags, data, size);
+    return dev->bus->transfer(dev, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, data, 0, size);
+}
+
+static inline int spi_recv(spi_device_t *dev, void *data, size_t size)
+{
+    return dev->bus->transfer(dev, SPI_FLAG_CS_TAKE | SPI_FLAG_CS_RELEASE, 0, data, size);
 }
 
 static inline int spi_send_then_send(spi_device_t *dev, const void *data1, size_t size1, const void *data2, size_t size2)
 {
-    int ret1 = spi_send(dev, SPI_FLAG_CS_TAKE, data1, size1);
-    int ret2 = spi_send(dev, SPI_FLAG_CS_RELEASE, data2, size2);
+    int ret1 = dev->bus->transfer(dev, SPI_FLAG_CS_TAKE, data1, 0, size1);
+    int ret2 = dev->bus->transfer(dev, SPI_FLAG_CS_RELEASE, data2, 0, size2);
     return ret1 | ret2;
 }
 
 static inline int spi_send_then_recv(spi_device_t *dev, const void *send_data, size_t send_size, void *recv_data, size_t recv_size)
 {
-    int ret1 = spi_send(dev, SPI_FLAG_CS_TAKE, send_data, send_size);
-    int ret2 = spi_transfer(dev, SPI_FLAG_CS_RELEASE, recv_data, recv_size);
+    int ret1 = dev->bus->transfer(dev, SPI_FLAG_CS_TAKE, send_data, 0, send_size);
+    int ret2 = dev->bus->transfer(dev, SPI_FLAG_CS_RELEASE, 0, recv_data, recv_size);
     return ret1 | ret2;
 }
 
