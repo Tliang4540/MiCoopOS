@@ -314,7 +314,6 @@ static int stm32_pwm_close(pwm_device_t *dev)
     return 0;
 }
 
-
 static const struct pwm_device_ops stm32_pwm_ops = 
 {
     .open = stm32_pwm_open,

@@ -155,9 +155,10 @@ mc_bool_t mc_msg_recv(mc_msg_t *msg, mc_ubase_t *data, mc_ubase_t timeout)
             *data = msg->data;   
         }
     }
-    else if (data)
+    else
     {
-        *data = msg->data;
+        if (data)
+            *data = msg->data;
         mc_cur_task->state = 1;
     }
 
