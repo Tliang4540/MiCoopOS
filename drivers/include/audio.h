@@ -8,12 +8,12 @@
 
 #include <mctypes.h>
 
-typedef void (*audio_callback_t)(void *buffer, unsigned int size);
+typedef void (*audio_callback_t)(void *buffer, size_t size);
 
 struct audio_device;
 struct audio_device_ops
 {
-    int (*open)(struct audio_device *dev);
+    int (*open)(struct audio_device *dev, unsigned int sample_rate);
     int (*close)(struct audio_device *dev);
     int (*play)(struct audio_device *dev, audio_callback_t callback);
     int (*stop)(struct audio_device *dev);
@@ -23,12 +23,13 @@ typedef struct audio_device
 {
     struct mc_object parent;
     const struct audio_device_ops *ops;
+    unsigned int sample_bits;
     void *user_data;
 }audio_device_t;
 
-static inline int audio_open(audio_device_t *dev)
+static inline int audio_open(audio_device_t *dev, unsigned int sample_rate)
 {
-    return dev->ops->open(dev);
+    return dev->ops->open(dev, sample_rate);
 }
 
 static inline int audio_close(audio_device_t *dev)
@@ -46,6 +47,11 @@ static inline int audio_stop(audio_device_t *dev)
     return dev->ops->stop(dev);
 }
 
-void audio_device_init(audio_device_t *dev, unsigned int dac_id, unsigned int channel, unsigned int sample_rate);
+static inline int audio_get_sample_bits(audio_device_t *dev)
+{
+    return dev->sample_bits;
+}
+
+void audio_device_init(audio_device_t *dev, unsigned int dac_id, unsigned int channel, unsigned int en_pin);
 
 #endif

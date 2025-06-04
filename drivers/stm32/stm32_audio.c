@@ -5,6 +5,7 @@
  */
 #include <audio.h>
 #include <stm32.h>
+#include <pin.h>
 #include <pwm.h>
 #include <timer.h>
 #include <mcconfig.h>
@@ -71,25 +72,26 @@ struct audio_drv
 {
     pwm_device_t pwm;
     unsigned int channel;
-    unsigned int sample_rate;
+    unsigned int en_pin;
     audio_callback_t callback;
     unsigned short buffer[2][256];
 };
 
 static struct audio_drv _audio;
 
-static int stm32_audio_open(audio_device_t *dev)
+static int stm32_audio_open(audio_device_t *dev, unsigned int sample_rate)
 {
     uint32_t ccr_addr;
     struct audio_drv *audio = dev->user_data;
     unsigned int pwm_period;
-    LL_TIM_SetAutoReload(AUDIO_TIM, SystemCoreClock / audio->sample_rate - 1);
+    LL_TIM_SetAutoReload(AUDIO_TIM, SystemCoreClock / sample_rate - 1);
     LL_TIM_EnableDMAReq_UPDATE(AUDIO_TIM);
 
     pwm_period = 1000000000 / (SystemCoreClock / (1 << AUDIO_BITS));
     pwm_set_period(&audio->pwm, pwm_period);
     pwm_set_channel_pulse(&audio->pwm, audio->channel, pwm_period / 2);
     pwm_open(&audio->pwm);
+    pwm_enable_channel(&audio->pwm, audio->channel);
     switch(audio->channel)
     {
     case 0:
@@ -121,6 +123,7 @@ static int stm32_audio_open(audio_device_t *dev)
     LL_DMA_EnableIT_TC(DMA1, AUDIO_DMA_CHANNEL);
     LL_DMA_EnableIT_HT(DMA1, AUDIO_DMA_CHANNEL);
 
+    pin_write(audio->en_pin, 1);
     return 0;
 }
 
@@ -136,7 +139,6 @@ static int stm32_audio_play(audio_device_t *dev, audio_callback_t callback)
     LL_TIM_GenerateEvent_UPDATE(AUDIO_TIM);
     LL_DMA_EnableChannel(DMA1, AUDIO_DMA_CHANNEL);
     LL_TIM_EnableCounter(AUDIO_TIM);
-    pwm_enable_channel(&audio->pwm, audio->channel);
     return 0;
 }
 
@@ -158,6 +160,7 @@ static int stm32_audio_close(audio_device_t *dev)
     struct audio_drv *audio = dev->user_data;
     if (audio->callback)
         stm32_audio_stop(dev);
+    pin_write(audio->en_pin, 0);
     pwm_disable_channel(&audio->pwm, audio->channel);
     return 0;
 }
@@ -170,15 +173,17 @@ static const struct audio_device_ops stm32_audio_ops =
     .stop = stm32_audio_stop,
 };
 
-void audio_device_init(audio_device_t *dev, unsigned int dac_id, unsigned int channel, unsigned int sample_rate)
+void audio_device_init(audio_device_t *dev, unsigned int dac_id, unsigned int channel, unsigned int en_pin)
 {
     AUDIO_DMA_CLK_ENABLE();
     AUDIO_TIM_CLK_ENABLE();
     pwm_device_init(&_audio.pwm, dac_id);
+    pin_mode(en_pin, PIN_MODE_OUTPUT_PP);
     _audio.channel = channel;
-    _audio.sample_rate = sample_rate;
+    _audio.en_pin = en_pin;
     dev->ops = &stm32_audio_ops;
     dev->user_data = &_audio;
+    dev->sample_bits = AUDIO_BITS;
 }
 
 #if defined(STM32G0)
