@@ -20,6 +20,7 @@ struct mc_msg
 typedef struct mc_msg mc_msg_t;
 
 void mc_task_init(void (*task)(void *), void *arg, void *stack, size_t stack_size);
+void mc_task_delete(void *task);
 void mc_delay(mc_ubase_t ticks);
 void mc_tick_handler(void);
 void mc_start(void);

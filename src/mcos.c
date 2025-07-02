@@ -85,6 +85,42 @@ void mc_task_init(void (*task)(void *), void *arg, void *stack, size_t stack_siz
     mc_task_tail->list_node.next = (void*)mc_task_head;
 }
 
+void mc_task_delete(void *task)
+{
+    mc_slist_t *tcb;
+
+    if (task == NULL)
+        tcb = (mc_slist_t*)mc_cur_task;
+    else
+        tcb = task;
+    
+    if (tcb == (mc_slist_t*)mc_task_head)
+    {
+        mc_task_head = (mc_tcb_t*)tcb->next;
+        mc_task_tail->list_node.next = (mc_slist_t*)mc_task_head; // 保持循环链表
+        return;
+    }
+
+    mc_slist_t *prev = (mc_slist_t*)mc_task_head;
+    for (mc_slist_t *cur = mc_task_head->list_node.next; cur != (mc_slist_t*)mc_task_head; cur = cur->next)
+    {
+        if (cur == tcb)
+        {
+            if ((mc_slist_t*)mc_task_tail == cur)
+            {
+                mc_task_tail = (mc_tcb_t*)prev; // 更新尾指针
+                mc_task_tail->list_node.next = (mc_slist_t*)mc_task_head; // 保持循环链表
+            }
+            else
+            {
+                prev->next = cur->next;
+            }
+            return;
+        }
+        prev = cur;
+    }
+}
+
 void mc_start(void)
 {
     LOG_ASSERT(mc_cur_task != 0);

@@ -17,7 +17,7 @@ _mc_yield:
     MOV                 R0,R8
     PUSH                {R0-R7, LR}
 
-    MOV R0, SP
+    MRS R0, PSP
     LDR R1, =_mc_cur_sp
     STR R0, [R1]
 
@@ -25,7 +25,7 @@ _mc_yield:
 _mc_pop_stack:
     LDR R0, =_mc_cur_sp
     LDR R0, [R0]
-    MOV SP, R0
+    MSR PSP, R0
 
     POP                 {R0-R7}
     MOV                 R8,R0
@@ -35,6 +35,10 @@ _mc_pop_stack:
     POP                 {PC}
     
 _mc_start:
+    LDR         R0, =_elos_cur_sp
+    LDR         R0, [R0]
+    MSR         PSP, R0
     MOVS        R0, #0x02
     MSR         CONTROL, R0
+    ISB
     B           _mc_pop_stack 
