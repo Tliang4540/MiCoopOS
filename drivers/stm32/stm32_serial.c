@@ -337,8 +337,6 @@ static int stm32_serial_open(device_t *dev)
     uart->tx_rb.r = 0;
     uart->tx_rb.w = 0;
     uart->uart->CR1 = (1 << 5) | USART_CR1_TE | USART_CR1_RE | USART_CR1_UE;
-    NVIC_SetPriority(uart->irq, 3);
-    NVIC_EnableIRQ(uart->irq);
     return 0;
 }
 
@@ -347,7 +345,6 @@ static int stm32_serial_close(device_t *dev)
     struct stm32_uart *uart = dev->user_data;
 
     uart->uart->CR1 = 0;
-    NVIC_DisableIRQ(uart->irq);
     return 0;
 }
 
@@ -414,6 +411,8 @@ void serial_device_init(device_t *dev, unsigned int serial_id, unsigned int baud
     else
     #endif
         uart_list[serial_id].uart->BRR = (SystemCoreClock + baudrate / 2) / baudrate;
+    NVIC_SetPriority(uart_list[serial_id].irq, 3);
+    NVIC_EnableIRQ(uart_list[serial_id].irq);
 }
 
 static void uart_irq_handler(struct stm32_uart *uart)
