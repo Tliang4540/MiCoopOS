@@ -25,6 +25,7 @@ void log_printf(const char *format, ...)
 
     if (log_lock)
         mc_delay(1);
+    log_lock = 1;
 
     va_start(args, format);
 
@@ -105,6 +106,7 @@ void log_dump(const void *data, unsigned size)
 
     if (log_lock)
         mc_delay(1);
+    log_lock = 1;
 
     for(i = 0; i < size; i++)
     {

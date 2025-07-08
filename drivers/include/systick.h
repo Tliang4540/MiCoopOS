@@ -12,5 +12,7 @@
  * @param callback systick callback
  */
 void systick_init(unsigned int period, void (*callback)(void));
+void systick_start(void);
+void systick_stop(void);
 
 #endif

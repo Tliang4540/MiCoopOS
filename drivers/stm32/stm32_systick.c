@@ -18,3 +18,13 @@ void systick_init(unsigned int period, void (*callback)(void))
     systick_callback = callback;
     SysTick_Config(period * (SystemCoreClock / 1000000));
 }
+
+void systick_stop(void)
+{
+   SysTick->CTRL &= ~(SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk);
+}
+
+void systick_start(void)
+{
+   SysTick->CTRL |= (SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk);
+}
